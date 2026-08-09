@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnonMesh - Sichere Web-Chat Anwendung</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+/* AnonMesh Embedded Stylesheet */
+:root {
+    --bg-main: #0f172a;
+    --bg-card: #1e293b;
+    --bg-sidebar: #17212b;
+    --bg-chat: #0e1621;
+    --border-color: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #3b82f6;
+    --accent-hover: #2563eb;
+    --accent-light: rgba(59, 130, 246, 0.15);
+    --msg-incoming: #182533;
+    --msg-incoming-text: #f8fafc;
+    --msg-outgoing: #2b5278;
+    --msg-outgoing-text: #ffffff;
+    --online-color: #22c55e;
+    --offline-color: #64748b;
+    --unread-bg: #3b82f6;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --radius-full: 9999px;
+    --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] {
+    --bg-main: #f0f2f5;
+    --bg-card: #ffffff;
+    --bg-sidebar: #ffffff;
+    --bg-chat: #efeae2;
+    --border-color: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent: #00a884;
+    --accent-hover: #008f70;
+    --accent-light: rgba(0, 168, 132, 0.12);
+    --msg-incoming: #ffffff;
+    --msg-incoming-text: #111b21;
+    --msg-outgoing: #d9fdd3;
+    --msg-outgoing-text: #111b21;
+    --online-color: #16a34a;
+    --offline-color: #94a3b8;
+    --unread-bg: #25d366;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+body { background-color: var(--bg-main); color: var(--text-primary); height: 100vh; width: 100vw; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+.hidden { display: none !important; }
+.hidden-form { display: none !important; }
+.icon-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 8px; border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; transition: var(--transition); }
+.icon-btn:hover { background: var(--accent-light); color: var(--accent); }
+
+.auth-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px; background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 40%), radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.1), transparent 40%); }
+.auth-card { background: var(--bg-card); border: 1px solid var(--border-color); width: 100%; max-width: 420px; padding: 36px 30px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); animation: fadeIn 0.4s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+.auth-header { text-align: center; margin-bottom: 24px; }
+.brand-logo { width: 64px; height: 64px; background: linear-gradient(135deg, var(--accent), #10b981); color: #ffffff; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3); }
+.auth-header h2 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+.auth-header p { color: var(--text-secondary); font-size: 0.88rem; }
+.auth-tabs { display: flex; background: var(--bg-main); padding: 4px; border-radius: var(--radius-md); margin-bottom: 20px; }
+.tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: var(--text-secondary); font-weight: 600; font-size: 0.9rem; border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition); }
+.tab-btn.active { background: var(--bg-card); color: var(--accent); box-shadow: var(--shadow-sm); }
+.alert { padding: 12px 14px; border-radius: var(--radius-sm); font-size: 0.85rem; margin-bottom: 16px; line-height: 1.4; }
+.alert.error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; }
+.alert.success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
+.form-group input { background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-primary); padding: 12px 14px; border-radius: var(--radius-sm); font-size: 0.95rem; outline: none; transition: var(--transition); }
+.form-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.btn-primary { background: var(--accent); color: #ffffff; border: none; padding: 12px; border-radius: var(--radius-sm); font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; margin-top: 8px; }
+.btn-primary:hover { background: var(--accent-hover); }
+
+.app-container { width: 100vw; height: 100vh; display: flex; background: var(--bg-main); overflow: hidden; }
+.sidebar { width: 360px; min-width: 300px; height: 100%; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; z-index: 10; }
+.sidebar-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); }
+.user-profile { display: flex; align-items: center; gap: 12px; overflow: hidden; }
+.avatar { width: 42px; height: 42px; border-radius: var(--radius-full); background: var(--accent); color: #ffffff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; flex-shrink: 0; text-transform: uppercase; }
+.user-info { display: flex; flex-direction: column; overflow: hidden; }
+.user-info .username { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-info .email { font-size: 0.78rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-actions { display: flex; gap: 4px; }
+.add-contact-box { padding: 14px 16px; border-bottom: 1px solid var(--border-color); background: var(--bg-card); }
+.search-input-wrapper { display: flex; align-items: center; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 4px 6px 4px 12px; gap: 8px; }
+.search-input-wrapper svg { color: var(--text-muted); flex-shrink: 0; }
+.search-input-wrapper input { background: transparent; border: none; color: var(--text-primary); font-size: 0.88rem; width: 100%; outline: none; }
+.btn-add-contact { background: var(--accent); color: #ffffff; border: none; width: 30px; height: 30px; border-radius: var(--radius-sm); font-size: 1.2rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: var(--transition); }
+.btn-add-contact:hover { background: var(--accent-hover); }
+.feedback-msg { font-size: 0.78rem; margin-top: 8px; padding: 6px 8px; border-radius: 4px; }
+.filter-box { padding: 10px 16px; border-bottom: 1px solid var(--border-color); }
+.filter-box input { width: 100%; background: var(--bg-main); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.85rem; outline: none; }
+.contacts-list-container { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.list-section-title { padding: 12px 20px 6px 20px; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px; }
+.contacts-list { display: flex; flex-direction: column; }
+.contact-item { display: flex; align-items: center; padding: 12px 18px; gap: 14px; cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.03); transition: var(--transition); position: relative; }
+.contact-item:hover { background: var(--accent-light); }
+.contact-item.active { background: var(--accent-light); border-left: 4px solid var(--accent); }
+.avatar-wrapper { position: relative; }
+.status-dot { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bg-sidebar); }
+.status-dot.online { background-color: var(--online-color); }
+.status-dot.offline { background-color: var(--offline-color); }
+.contact-details { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 3px; }
+.contact-top-row { display: flex; justify-content: space-between; align-items: center; }
+.contact-name { font-weight: 600; font-size: 0.92rem; color: var(--text-primary); }
+.contact-time { font-size: 0.72rem; color: var(--text-muted); }
+.contact-bottom-row { display: flex; justify-content: space-between; align-items: center; }
+.last-msg-preview { font-size: 0.82rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.unread-badge { background: var(--unread-bg); color: #ffffff; font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; min-width: 18px; text-align: center; }
+.chat-area { flex: 1; height: 100%; background: var(--bg-chat); display: flex; flex-direction: column; position: relative; }
+.chat-header { height: 68px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); padding: 0 20px; display: flex; align-items: center; gap: 14px; z-index: 5; }
+.mobile-back-btn { display: none; }
+.chat-header-info { display: flex; flex-direction: column; }
+.chat-header-info .chat-username { font-weight: 700; font-size: 1.05rem; }
+.chat-header-info .chat-status { font-size: 0.78rem; }
+.chat-status.online { color: var(--online-color); }
+.chat-status.offline { color: var(--offline-color); }
+.messages-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
+.no-chat-placeholder { margin: auto; text-align: center; max-width: 380px; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; }
+.placeholder-icon { width: 88px; height: 88px; background: var(--accent-light); color: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.messages-list { display: flex; flex-direction: column; gap: 10px; }
+.message-row { display: flex; width: 100%; margin-bottom: 4px; }
+.message-row.outgoing { justify-content: flex-end; }
+.message-row.incoming { justify-content: flex-start; }
+.msg-bubble { max-width: 65%; padding: 10px 14px; border-radius: var(--radius-md); position: relative; box-shadow: var(--shadow-sm); word-break: break-word; font-size: 0.92rem; line-height: 1.45; animation: popIn 0.2s ease-out; }
+@keyframes popIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.message-row.incoming .msg-bubble { background: var(--msg-incoming); color: var(--msg-incoming-text); border-top-left-radius: 2px; }
+.message-row.outgoing .msg-bubble { background: var(--msg-outgoing); color: var(--msg-outgoing-text); border-top-right-radius: 2px; }
+.msg-footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px; font-size: 0.68rem; opacity: 0.75; }
+.checkmarks { display: inline-flex; margin-left: 2px; }
+.checkmarks.read { color: #38bdf8; }
+.typing-indicator { padding: 8px 24px; font-size: 0.82rem; color: var(--text-secondary); font-style: italic; background: var(--bg-sidebar); border-top: 1px solid var(--border-color); }
+.chat-input-area { padding: 14px 20px; background: var(--bg-sidebar); border-top: 1px solid var(--border-color); position: relative; }
+.emoji-picker { position: absolute; bottom: 70px; left: 20px; background: var(--bg-card); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-md); display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; font-size: 1.4rem; box-shadow: var(--shadow-lg); z-index: 20; }
+.emoji-picker span { cursor: pointer; text-align: center; transition: transform 0.15s; }
+.emoji-picker span:hover { transform: scale(1.3); }
+.input-row { display: flex; align-items: center; gap: 12px; }
+.input-row input { flex: 1; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-primary); padding: 12px 16px; border-radius: var(--radius-full); font-size: 0.95rem; outline: none; transition: var(--transition); }
+.input-row input:focus { border-color: var(--accent); }
+.send-btn { background: var(--accent); color: #ffffff; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: var(--transition); flex-shrink: 0; }
+.send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+
+@media (max-width: 768px) {
+    .sidebar { width: 100%; border-right: none; }
+    .chat-area { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; display: none; }
+    .app-container.mobile-chat-open .chat-area { display: flex; }
+    .mobile-back-btn { display: flex; margin-right: 4px; }
+}
+    </style>
+    <!-- Socket.io Client Script -->
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+    <!-- ==================================================== -->
+    <!-- 1. AUTHENTICATION VIEW (Login / Registration)        -->
+    <!-- ==================================================== -->
+    <div id="auth-view" class="auth-container">
+        <div class="auth-card">
+            <!-- Brand Logo & Header -->
+            <div class="auth-header">
+                <div class="brand-logo">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        <path d="M12 7v6"></path>
+                        <path d="M9 10h6"></path>
+                    </svg>
+                </div>
+                <h2>AnonMesh</h2>
+                <p>Sicher. Anonym. Echtzeit-Kommunikation.</p>
+            </div>
+
+            <!-- Tab Buttons -->
+            <div class="auth-tabs">
+                <button id="tab-login-btn" class="tab-btn active" onclick="switchAuthTab('login')">Anmelden</button>
+                <button id="tab-register-btn" class="tab-btn" onclick="switchAuthTab('register')">Registrieren</button>
+            </div>
+
+            <!-- Global Alert Container -->
+            <div id="auth-alert" class="alert hidden"></div>
+
+            <!-- LOGIN FORM -->
+            <form id="login-form" class="auth-form active-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-input">E-Mail-Adresse oder Benutzername</label>
+                    <input type="text" id="login-input" placeholder="deine@email.de oder benutzername" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Passwort</label>
+                    <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                <button type="submit" id="login-submit-btn" class="btn btn-primary">
+                    <span class="btn-text">Einloggen</span>
+                    <span class="spinner hidden"></span>
+                </button>
+            </form>
+
+            <!-- REGISTER FORM -->
+            <form id="register-form" class="auth-form hidden-form" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="reg-username">Eindeutiger Benutzername</label>
+                    <input type="text" id="reg-username" placeholder="z. B. alex_mesh" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]+" title="Nur Buchstaben, Zahlen und Unterstriche">
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">E-Mail-Adresse</label>
+                    <input type="email" id="reg-email" placeholder="name@domain.de" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Passwort (min. 6 Zeichen)</label>
+                    <input type="password" id="reg-password" placeholder="••••••••" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password-confirm">Passwort bestätigen</label>
+                    <input type="password" id="reg-password-confirm" placeholder="••••••••" required minlength="6">
+                </div>
+                <button type="submit" id="reg-submit-btn" class="btn btn-primary">
+                    <span class="btn-text">Konto erstellen</span>
+                    <span class="spinner hidden"></span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- 2. MAIN APPLICATION VIEW (Chat SPA Interface)       -->
+    <!-- ==================================================== -->
+    <div id="app-view" class="app-container hidden">
+
+        <!-- LEFT SIDEBAR: Contacts, Profile & Search -->
+        <aside id="sidebar" class="sidebar">
+            
+            <!-- Sidebar Header: Profile & Theme Toggle -->
+            <div class="sidebar-header">
+                <div class="user-profile">
+                    <div id="my-avatar" class="avatar">U</div>
+                    <div class="user-info">
+                        <span id="my-username" class="username">Benutzername</span>
+                        <span id="my-email" class="email">email@domain.com</span>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button id="theme-toggle-btn" class="icon-btn" title="Design wechseln (Dark/Light)" onclick="toggleTheme()">
+                        <!-- Sun / Moon SVG Icon -->
+                        <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path class="sun-icon" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn logout-btn" title="Abmelden" onclick="handleLogout()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Add Contact Box -->
+            <div class="add-contact-box">
+                <form id="add-contact-form" onsubmit="handleAddContact(event)">
+                    <div class="search-input-wrapper">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                            <line x1="23" y1="11" x2="17" y2="11"></line>
+                        </svg>
+                        <input type="text" id="add-contact-input" placeholder="Kontakt per Username hinzufügen..." required>
+                        <button type="submit" class="btn-add-contact">+</button>
+                    </div>
+                </form>
+                <div id="add-contact-feedback" class="feedback-msg hidden"></div>
+            </div>
+
+            <!-- Contact Quick Search Filter -->
+            <div class="filter-box">
+                <input type="text" id="filter-contacts-input" placeholder="Chats durchsuchen..." oninput="filterContacts(this.value)">
+            </div>
+
+            <!-- Contacts / Active Chats List -->
+            <div class="contacts-list-container">
+                <div class="list-section-title">CHATS & KONTAKTE</div>
+                <div id="contacts-list" class="contacts-list">
+                    <!-- Contacts will be populated dynamically via JavaScript -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- RIGHT CHAT AREA: Message Window -->
+        <main id="chat-area" class="chat-area empty-chat-state">
+            
+            <!-- Chat Header (Visible when a contact is selected) -->
+            <header id="chat-header" class="chat-header hidden">
+                <button class="icon-btn mobile-back-btn" onclick="closeMobileChat()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                </button>
+                
+                <div id="chat-avatar" class="avatar">?</div>
+                <div class="chat-header-info">
+                    <span id="chat-username" class="chat-username">Name</span>
+                    <span id="chat-status" class="chat-status offline">Offline</span>
+                </div>
+            </header>
+
+            <!-- Messages Scroll View -->
+            <div id="messages-container" class="messages-container">
+                
+                <!-- Placeholder when no chat is open -->
+                <div id="no-chat-selected" class="no-chat-placeholder">
+                    <div class="placeholder-icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </div>
+                    <h3>Willkommen bei AnonMesh</h3>
+                    <p>Wähle einen Kontakt aus der linken Spalte aus oder füge oben neue Freunde per Benutzernamen hinzu.</p>
+                </div>
+
+                <!-- Messages List -->
+                <div id="messages-list" class="messages-list hidden">
+                    <!-- Dynamic Messages Bubbles -->
+                </div>
+            </div>
+
+            <!-- Typing Indicator Bar -->
+            <div id="typing-indicator" class="typing-indicator hidden">
+                <span id="typing-username">Kontakt</span> schreibt gerade<span class="dot-flashing"></span>
+            </div>
+
+            <!-- Chat Message Input Area -->
+            <footer id="chat-input-area" class="chat-input-area hidden">
+                <!-- Quick Emoji Picker Dropdown -->
+                <div id="emoji-picker" class="emoji-picker hidden">
+                    <span onclick="insertEmoji('😀')">😀</span>
+                    <span onclick="insertEmoji('😂')">😂</span>
+                    <span onclick="insertEmoji('😍')">😍</span>
+                    <span onclick="insertEmoji('👍')">👍</span>
+                    <span onclick="insertEmoji('🔥')">🔥</span>
+                    <span onclick="insertEmoji('❤️')">❤️</span>
+                    <span onclick="insertEmoji('🎉')">🎉</span>
+                    <span onclick="insertEmoji('😎')">😎</span>
+                    <span onclick="insertEmoji('🙏')">🙏</span>
+                    <span onclick="insertEmoji('😊')">😊</span>
+                    <span onclick="insertEmoji('🤔')">🤔</span>
+                    <span onclick="insertEmoji('🚀')">🚀</span>
+                </div>
+
+                <div class="input-row">
+                    <button class="icon-btn emoji-btn" title="Emoji einfügen" onclick="toggleEmojiPicker(event)">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                        </svg>
+                    </button>
+
+                    <input type="text" id="message-input" placeholder="Schreibe eine Nachricht..." autocomplete="off" onkeydown="handleInputKeyDown(event)">
+
+                    <button id="send-msg-btn" class="send-btn" title="Senden" onclick="sendMessage()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+</body>
+</html>
