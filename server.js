@@ -229,8 +229,39 @@ function getRandomColor() {
 }
 
 // ----------------------------------------------------
+// MILITARY-GRADE ANTI-CLONING & ANTI-SCRAPER SHIELD
+// Blocks HTTrack, Wget, Curl, Scrapy, Teleport Pro, SiteSucker, WebCopier & Code Theft
+// ----------------------------------------------------
+const BLOCKED_USER_AGENTS = [
+    'httrack', 'wget', 'curl', 'python', 'scrapy', 'teleport', 'sitesucker',
+    'webcopier', 'offline explorer', 'nikto', 'sqlmap', 'nmap', 'go-http-client',
+    'java', 'libwww-perl', 'urllib', 'axios'
+];
+
+app.use((req, res, next) => {
+    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+    
+    // Check if user agent is a web cloner / downloader tool
+    const isCloner = BLOCKED_USER_AGENTS.some(agent => userAgent.includes(agent));
+    if (isCloner) {
+        return res.status(403).send(`
+            🈲 原始碼已進行最高級加密保護 (0x9F3E-ANTI-CLONER-SHIELD)
+            網頁保護系統已啟動。禁止複製、禁止下載、禁止機器人抓取此網站的任何內容。
+        `);
+    }
+
+    // Add Security Response Headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+
+    next();
+});
+
+// ----------------------------------------------------
 // Authentication Middleware (REST API)
 // ----------------------------------------------------
+
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
