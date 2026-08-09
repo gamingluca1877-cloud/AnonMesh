@@ -1212,18 +1212,23 @@ async function startCall(callType) {
 
     try {
         const constraints = {
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
-            video: callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: callType === 'video' ? { facingMode: 'user' } : false
         };
 
         callState.localStream = await navigator.mediaDevices.getUserMedia(constraints);
         
-        document.getElementById('local-video').srcObject = callState.localStream;
+        const localVideo = document.getElementById('local-video');
+        localVideo.srcObject = callState.localStream;
+        localVideo.style.display = callType === 'video' ? 'block' : 'none';
+        localVideo.play().catch(e => console.warn('Local video play:', e));
+
         document.getElementById('active-call-modal').classList.remove('hidden');
 
         callState.peerConnection = new RTCPeerConnection(rtcConfig);
 
         callState.localStream.getTracks().forEach(track => {
+            track.enabled = true;
             callState.peerConnection.addTrack(track, callState.localStream);
         });
 
@@ -1247,7 +1252,10 @@ async function startCall(callType) {
             }
         };
 
-        const offer = await callState.peerConnection.createOffer();
+        const offer = await callState.peerConnection.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: callType === 'video'
+        });
         await callState.peerConnection.setLocalDescription(offer);
 
         state.socket.emit('call_user', {
@@ -1270,17 +1278,23 @@ async function acceptIncomingCall() {
 
     try {
         const constraints = {
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
-            video: callState.callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: callState.callType === 'video' ? { facingMode: 'user' } : false
         };
 
         callState.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        document.getElementById('local-video').srcObject = callState.localStream;
+        
+        const localVideo = document.getElementById('local-video');
+        localVideo.srcObject = callState.localStream;
+        localVideo.style.display = callState.callType === 'video' ? 'block' : 'none';
+        localVideo.play().catch(e => console.warn('Local video play:', e));
+
         document.getElementById('active-call-modal').classList.remove('hidden');
 
         callState.peerConnection = new RTCPeerConnection(rtcConfig);
 
         callState.localStream.getTracks().forEach(track => {
+            track.enabled = true;
             callState.peerConnection.addTrack(track, callState.localStream);
         });
 
@@ -1320,6 +1334,7 @@ async function acceptIncomingCall() {
         rejectIncomingCall();
     }
 }
+
 
 function rejectIncomingCall() {
     document.getElementById('incoming-call-modal').classList.add('hidden');
