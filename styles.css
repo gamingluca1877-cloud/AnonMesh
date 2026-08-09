@@ -1146,6 +1146,8 @@ input, textarea {
     height: 100%;
     object-fit: contain;
     background: #071013;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
 }
 
 .local-video {
@@ -1160,6 +1162,8 @@ input, textarea {
     border: 2px solid var(--border-color);
     box-shadow: var(--shadow-lg);
     z-index: 20;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
 }
 
 .call-controls-bar {
