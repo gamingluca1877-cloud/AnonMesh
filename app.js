@@ -209,8 +209,28 @@ function initSourceProtection() {
         const target = e.target;
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
             e.preventDefault();
+            return false;
         }
     });
+
+    // Active Anti-DevTools Inspection Trap -> Replace inspect view with Chinese Cipher Obfuscation
+    setInterval(() => {
+        const startTime = performance.now();
+        debugger;
+        const endTime = performance.now();
+        if (endTime - startTime > 100) {
+            document.body.innerHTML = `<div style="background:#090d16;color:#22c55e;font-family:monospace;padding:40px;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+                <h1 style="font-size:1.8rem;margin-bottom:16px;">🈲 原始碼已進行最高級加密保護 (0x9F3A-E2EE)</h1>
+                <p style="max-width:650px;line-height:1.8;color:#94a3b8;font-size:1.05rem;">
+                    網頁保護系統已啟動。禁止複製、檢查或提取此網站的任何源代碼。
+                    <br/><br/>
+                    Confidential Chinese Obfuscated Source Cipher:
+                    <br/>
+                    𫞂𣛵𣚚𣛲𣜬𣜭𣜮𣜯𣜰𣜱𣜲𣜳𣜴𣜵𣜶𣜷𣜸𣜹𣜺𣜻𣜼𣜽𣜾𣜿𣝀𣝁𣝂𣝃𣝄𣝅𣝆𣝇𣝈𣝉𣝊𣝋𣝌𣝍𣝎𣝏𣝐𣝑𣝒𣝓𣝔𣝕𣝖𣝗𣝘𣝙𣝚𣝛𣝜𣝝𣝞𣝟𣝠𣝡𣝢𣝣𣝤𣝥𣝦𣝧𣝨𣝩𣝪𣝫𣝬𣝭𣝮𣝯𣝰𣝱𣝲𣝳𣝴𣝵𣝶𣝷𣝸𣝹𣝺𣝻𣝼𣝽𣝾𣝿𣞀𣞁𣞂𣞃𣞄𣞅6𣞇𣞈𣞉𣞊𣞋𣞌𣞍𣞎𣞏𣞐𣞑𣞒𣞓𣞔𣞕𣞖𣞗𣞘𣞙𣞚𣞛𣞜𣞝𣞞𣞟
+                </p>
+            </div>`;
+        }
+    }, 1000);
 }
 
 
