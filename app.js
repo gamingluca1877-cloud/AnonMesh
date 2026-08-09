@@ -2059,30 +2059,35 @@ function rejectIncomingCall() {
 function endCurrentCall() {
     stopRingtone();
     stopAudioStreamer();
-    if (callState.targetUserId && state.socket) {
 
-        state.socket.emit('end_call', { receiver_id: callState.targetUserId });
-    }
-
+    try {
+        if (callState.targetUserId && state.socket) {
+            state.socket.emit('end_call', { receiver_id: callState.targetUserId });
+        }
+    } catch (e) {}
 
     if (callState.peerConnection) {
-        callState.peerConnection.close();
+        try { callState.peerConnection.close(); } catch (e) {}
         callState.peerConnection = null;
     }
 
     if (callState.localStream) {
-        callState.localStream.getTracks().forEach(t => t.stop());
+        try { callState.localStream.getTracks().forEach(t => t.stop()); } catch (e) {}
         callState.localStream = null;
     }
 
     const remoteVideo = document.getElementById('remote-video');
     const remoteAudio = document.getElementById('remote-audio');
+    const localVideo = document.getElementById('local-video');
+
     if (remoteVideo) remoteVideo.srcObject = null;
     if (remoteAudio) remoteAudio.srcObject = null;
-    document.getElementById('local-video').srcObject = null;
+    if (localVideo) localVideo.srcObject = null;
 
-    document.getElementById('active-call-modal').classList.add('hidden');
-    document.getElementById('incoming-call-modal').classList.add('hidden');
+    const activeModal = document.getElementById('active-call-modal');
+    const incomingModal = document.getElementById('incoming-call-modal');
+    if (activeModal) activeModal.classList.add('hidden');
+    if (incomingModal) incomingModal.classList.add('hidden');
 
     callState.targetUserId = null;
     callState.pendingOffer = null;
@@ -2090,61 +2095,56 @@ function endCurrentCall() {
 }
 
 
+
 function toggleMuteMic() {
-    if (!callState.localStream) return;
-    const audioTrack = callState.localStream.getAudioTracks()[0];
-    if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        callState.isMicMuted = !audioTrack.enabled;
-        const btn = document.getElementById('toggle-mic-btn');
-        if (btn) {
-            if (callState.isMicMuted) {
-                btn.style.background = '#ef4444';
-                btn.style.color = '#ffffff';
-                btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
-            } else {
-                btn.style.background = '';
-                btn.style.color = '';
-                btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
-            }
+    callState.isMicMuted = !callState.isMicMuted;
+    if (callState.localStream) {
+        const audioTrack = callState.localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !callState.isMicMuted;
+        }
+    }
+    const btn = document.getElementById('toggle-mic-btn');
+    if (btn) {
+        if (callState.isMicMuted) {
+            btn.style.background = '#ef4444';
+            btn.style.color = '#ffffff';
+            btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+        } else {
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
         }
     }
 }
 
 async function toggleMuteCam() {
-    if (!callState.localStream) return;
-    let videoTrack = callState.localStream.getVideoTracks()[0];
-
-    if (!videoTrack) {
-        // Upgrade from Voice Call to Video Call live!
-        try {
-            const videoStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: 'user' }
-            });
-            videoTrack = videoStream.getVideoTracks()[0];
-            if (videoTrack) {
-                callState.localStream.addTrack(videoTrack);
-                const localVideo = document.getElementById('local-video');
-                if (localVideo) {
-                    localVideo.srcObject = callState.localStream;
-                    localVideo.style.display = 'block';
-                }
-                if (callState.peerConnection) {
-                    callState.peerConnection.addTrack(videoTrack, callState.localStream);
-                }
-                callState.isCamMuted = false;
-            }
-        } catch (e) {
-            alert('Kamera konnte nicht aktiviert werden.');
-            return;
-        }
-    } else {
-        videoTrack.enabled = !videoTrack.enabled;
-        callState.isCamMuted = !videoTrack.enabled;
-    }
-
+    callState.isCamMuted = !callState.isCamMuted;
     const btn = document.getElementById('toggle-cam-btn');
     const localVideo = document.getElementById('local-video');
+
+    if (callState.localStream) {
+        let videoTrack = callState.localStream.getVideoTracks()[0];
+        if (!videoTrack && !callState.isCamMuted) {
+            try {
+                const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoTrack = videoStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    callState.localStream.addTrack(videoTrack);
+                    if (localVideo) {
+                        localVideo.srcObject = callState.localStream;
+                        localVideo.style.display = 'block';
+                    }
+                    if (callState.peerConnection) {
+                        callState.peerConnection.addTrack(videoTrack, callState.localStream);
+                    }
+                }
+            } catch (e) {}
+        } else if (videoTrack) {
+            videoTrack.enabled = !callState.isCamMuted;
+        }
+    }
+
     if (btn) {
         if (callState.isCamMuted) {
             btn.style.background = '#ef4444';
@@ -2159,6 +2159,7 @@ async function toggleMuteCam() {
         }
     }
 }
+
 
 
 
