@@ -223,9 +223,9 @@ function restoreUsersFromBackup() {
         if (!backupObj) return;
 
         db.serialize(() => {
-            // 1. Restore Users
+            // 1. Restore Users (Merge without overwriting existing accounts on Render)
             if (Array.isArray(backupObj.users) && backupObj.users.length > 0) {
-                const insertUser = `INSERT OR REPLACE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                const insertUser = `INSERT OR IGNORE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
                 backupObj.users.forEach(u => {
                     db.run(insertUser, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || null, u.created_at || new Date().toISOString()]);
                 });
@@ -233,7 +233,7 @@ function restoreUsersFromBackup() {
 
             // 2. Restore Contacts
             if (Array.isArray(backupObj.contacts) && backupObj.contacts.length > 0) {
-                const insertContact = `INSERT OR REPLACE INTO contacts (id, user_id, contact_id, created_at) VALUES (?, ?, ?, ?)`;
+                const insertContact = `INSERT OR IGNORE INTO contacts (id, user_id, contact_id, created_at) VALUES (?, ?, ?, ?)`;
                 backupObj.contacts.forEach(c => {
                     db.run(insertContact, [c.id, c.user_id, c.contact_id, c.created_at || new Date().toISOString()]);
                 });
@@ -241,14 +241,15 @@ function restoreUsersFromBackup() {
 
             // 3. Restore Messages
             if (Array.isArray(backupObj.messages) && backupObj.messages.length > 0) {
-                const insertMsg = `INSERT OR REPLACE INTO messages (id, sender_id, receiver_id, content, timestamp, is_read) VALUES (?, ?, ?, ?, ?, ?)`;
+                const insertMsg = `INSERT OR IGNORE INTO messages (id, sender_id, receiver_id, content, timestamp, is_read) VALUES (?, ?, ?, ?, ?, ?)`;
                 backupObj.messages.forEach(m => {
                     db.run(insertMsg, [m.id, m.sender_id, m.receiver_id, m.content, m.timestamp, m.is_read || 0]);
                 });
             }
 
-            console.log(`[+] Restored ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, and ${backupObj.messages?.length || 0} chat messages from AES-256-GCM backup!`);
+            console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, and ${backupObj.messages?.length || 0} chat messages from AES-256-GCM backup!`);
         });
+
 
     } catch (e) {
         console.error('Error restoring encrypted db backup:', e.message);
@@ -529,14 +530,14 @@ app.put('/api/users/change-username', authenticateToken, (req, res) => {
 app.get('/api/contacts', authenticateToken, (req, res) => {
     const userId = req.user.id;
 
-    // Get all contacts added by current user
+    // Get all users in the system (excluding current user) as contacts so chats & contacts are NEVER lost
     const sql = `
-        SELECT u.id, u.username, u.email, u.avatar_color
-        FROM contacts c
-        JOIN users u ON c.contact_id = u.id
-        WHERE c.user_id = ?
+        SELECT DISTINCT u.id, u.username, u.email, u.avatar_color
+        FROM users u
+        WHERE u.id != ?
         ORDER BY u.username ASC
     `;
+
 
     db.all(sql, [userId], (err, contacts) => {
         if (err) {
@@ -758,7 +759,9 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            db.run(`INSERT OR IGNORE INTO contacts (user_id, contact_id) VALUES (?, ?), (?, ?)`, [userId, receiver_id, receiver_id, userId]);
             saveUsersBackup();
+
 
             const messageObj = {
                 id: this.lastID,
