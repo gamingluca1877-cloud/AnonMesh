@@ -1042,23 +1042,55 @@ async function handleProfilePictureSelected(e) {
 }
 
 // ----------------------------------------------------
-// FILE & IMAGE ATTACHMENTS (E2EE)
+// FILE & IMAGE ATTACHMENTS (E2EE & Image Compression)
 // ----------------------------------------------------
+function compressImage(dataUrl, maxSide = 1280, quality = 0.82) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxSide || height > maxSide) {
+                if (width > height) {
+                    height = Math.round((height * maxSide) / width);
+                    width = maxSide;
+                } else {
+                    width = Math.round((width * maxSide) / height);
+                    height = maxSide;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+    });
+}
+
 async function handleFileSelected(e) {
     const file = e.target.files[0];
     if (!file || !state.activeContact) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-        alert('Dateien dürfen maximal 15 MB groß sein.');
+    if (file.size > 25 * 1024 * 1024) {
+        alert('Dateien dürfen maximal 25 MB groß sein.');
         return;
     }
 
     const reader = new FileReader();
     reader.onload = async (event) => {
-        const fileDataUrl = event.target.result;
+        let fileDataUrl = event.target.result;
         let formattedPayload = '';
 
         if (file.type.startsWith('image/')) {
+            // Compress photo automatically so it transmits at lightning speed
+            fileDataUrl = await compressImage(fileDataUrl);
             formattedPayload = `📷IMG:${fileDataUrl}`;
         } else {
             formattedPayload = `📎FILE:${file.name}:::${fileDataUrl}`;
@@ -1073,6 +1105,7 @@ async function handleFileSelected(e) {
     };
     reader.readAsDataURL(file);
 }
+
 
 // ----------------------------------------------------
 // VOICE MESSAGES RECORDER (E2EE)

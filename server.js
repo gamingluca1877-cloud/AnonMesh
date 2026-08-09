@@ -22,8 +22,10 @@ const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    maxHttpBufferSize: 50 * 1024 * 1024 // 50MB limit for high-res images & media
 });
+
 
 // Middleware
 app.use(cors());
