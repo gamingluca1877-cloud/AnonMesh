@@ -181,13 +181,14 @@ function restoreUsersFromBackup() {
         if (!backupObj) return;
 
         db.serialize(() => {
-            // 1. Restore Users (With avatar_url & username updates)
+            // 1. Restore Users (Preserve existing updated usernames)
             if (Array.isArray(backupObj.users)) {
-                const insertUser = `INSERT OR REPLACE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                const insertUser = `INSERT OR IGNORE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
                 backupObj.users.forEach(u => {
                     db.run(insertUser, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || null, u.created_at || new Date().toISOString()]);
                 });
             }
+
 
 
             // 2. Restore Contacts
