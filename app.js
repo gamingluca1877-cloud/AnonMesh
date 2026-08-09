@@ -19,11 +19,45 @@ const state = {
 // ----------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
+    initSourceProtection();
     if (window.location.protocol === 'file:') {
         showAuthAlert('⚠️ Bitte öffne die Anwendung im Browser über http://localhost:3000 (nicht über die Datei-URL file:///).', 'error');
     }
     checkAuthSession();
 });
+
+// ----------------------------------------------------
+// SOURCE CODE & CONTENT PROTECTION ENGINE
+// Prevents right-click, inspect element shortcuts, text copying & code theft
+// ----------------------------------------------------
+function initSourceProtection() {
+    // Disable Right-Click Context Menu
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Disable Developer Tools & Inspect Shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (
+            e.key === 'F12' ||
+            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
+            (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 's' || e.key === 'S'))
+        ) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    // Disable Drag & Drop of UI Assets
+    document.addEventListener('dragstart', (e) => e.preventDefault());
+
+    // Disable Text Copy outside Input & Textarea fields
+    document.addEventListener('copy', (e) => {
+        const target = e.target;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+        }
+    });
+}
+
 
 
 function initTheme() {
