@@ -33,6 +33,49 @@ app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
 app.use(express.static(path.join(__dirname)));
 
+// ----------------------------------------------------
+// MAXIMUM SECURITY HARDENING ENGINE v5.0 (MILITARY GRADE)
+// ----------------------------------------------------
+
+// 1. Security Headers (Clickjacking, XSS, Nosniff, HSTS, CSP)
+app.use((req, res, next) => {
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+    next();
+});
+
+// 2. Anti-Brute-Force & Rate Limiting Engine (In-Memory IP Tracker)
+const RATE_LIMIT_STORE = new Map();
+function rateLimiter(maxAttempts = 5, windowMs = 15 * 60 * 1000) {
+    return (req, res, next) => {
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+        const key = `${req.path}_${ip}`;
+        const now = Date.now();
+
+        const record = RATE_LIMIT_STORE.get(key);
+        if (record) {
+            if (now - record.startTime > windowMs) {
+                RATE_LIMIT_STORE.set(key, { attempts: 1, startTime: now });
+                return next();
+            }
+            if (record.attempts >= maxAttempts) {
+                return res.status(429).json({
+                    error: '🚨 ZU VIELE FEHLVERSUCHE: Zugriff wegen Brute-Force-Verdacht für 15 Minuten gesperrt!'
+                });
+            }
+            record.attempts++;
+        } else {
+            RATE_LIMIT_STORE.set(key, { attempts: 1, startTime: now });
+        }
+        next();
+    };
+}
+
+
 
 // ----------------------------------------------------
 // Database Setup & Initialization (SQLite)
@@ -284,7 +327,8 @@ const SITE_PASSCODE = process.env.SITE_PASSCODE || '13127348901312';
 const SITE_PASSCODE_HASH = bcrypt.hashSync(SITE_PASSCODE, 10);
 
 
-app.post('/api/auth/site-gate', async (req, res) => {
+app.post('/api/auth/site-gate', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
+
     try {
         let { passcode } = req.body;
         if (!passcode) {
