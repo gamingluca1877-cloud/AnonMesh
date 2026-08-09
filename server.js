@@ -282,8 +282,9 @@ function authenticateToken(req, res, next) {
 // ----------------------------------------------------
 // SITE-WIDE ACCESS PASSCODE GATE (Zero-Client-Knowledge Encryption)
 // ----------------------------------------------------
-const SITE_PASSCODE = process.env.SITE_PASSCODE || 'AnonMesh2026!';
+const SITE_PASSCODE = process.env.SITE_PASSCODE || '13127348901312';
 const SITE_PASSCODE_HASH = bcrypt.hashSync(SITE_PASSCODE, 10);
+
 
 app.post('/api/auth/site-gate', async (req, res) => {
     try {
