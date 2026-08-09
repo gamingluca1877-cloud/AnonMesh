@@ -158,10 +158,18 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
 .send-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
 
 @media (max-width: 768px) {
-    .sidebar { width: 100%; border-right: none; }
-    .chat-area { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; display: none; }
+    html, body { height: 100dvh !important; max-height: 100dvh !important; overflow: hidden; position: fixed; width: 100vw; }
+    .app-container { width: 100vw; height: 100dvh !important; max-height: 100dvh !important; border-radius: 0; border: none; }
+    input[type="text"], input[type="password"], input[type="email"], textarea { font-size: 16px !important; }
+    .sidebar { width: 100vw; height: 100dvh !important; border-right: none; }
+    .chat-area { position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh !important; z-index: 100; display: none; flex-direction: column; }
+    .app-container.mobile-chat-open .sidebar { display: none; }
     .app-container.mobile-chat-open .chat-area { display: flex; }
+    .mobile-back-btn { display: flex !important; align-items: center; justify-content: center; width: 44px; height: 44px; margin-right: 6px; }
+    .chat-input-area { padding: 10px 12px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+}
 .voice-recording-bar { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-sidebar); display: flex; align-items: center; padding: 0 20px; gap: 12px; z-index: 10; }
+
 .rec-dot { width: 12px; height: 12px; background-color: #ef4444; border-radius: 50%; animation: blinkRec 1s infinite; }
 @keyframes blinkRec { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 .btn-cancel-rec { margin-left: auto; background: transparent; border: none; color: #ef4444; font-weight: 600; cursor: pointer; font-size: 0.88rem; }
@@ -513,7 +521,8 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
     <!-- ==================================================== -->
     <div id="active-call-modal" class="modal-overlay hidden" style="background: #000000;">
         <div class="call-screen-container">
-            <!-- Remote Video Stream -->
+            <!-- Remote Audio & Video Streams -->
+            <audio id="remote-audio" autoplay playsinline style="display: none;"></audio>
             <video id="remote-video" autoplay playsinline class="remote-video"></video>
             <!-- Local Self Video Stream -->
             <video id="local-video" autoplay playsinline muted class="local-video"></video>
@@ -526,6 +535,7 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
             </div>
         </div>
     </div>
+
 
 
     <!-- Application Script -->

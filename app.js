@@ -498,6 +498,7 @@ function initSocketConnection() {
     state.socket.on('call_accepted', async ({ answer }) => {
         if (callState.peerConnection) {
             await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            await processQueuedIceCandidates();
         }
     });
 
@@ -511,15 +512,20 @@ function initSocketConnection() {
     });
 
     state.socket.on('ice_candidate', async ({ candidate }) => {
-        if (callState.peerConnection && candidate) {
-            try {
-                await callState.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-            } catch (e) {
-                console.error('Error adding ICE candidate:', e);
+        if (candidate) {
+            if (callState.peerConnection && callState.peerConnection.remoteDescription) {
+                try {
+                    await callState.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.error('Error adding ICE candidate:', e);
+                }
+            } else {
+                callState.iceCandidatesQueue.push(candidate);
             }
         }
     });
 }
+
 
 
 // ----------------------------------------------------
@@ -1154,6 +1160,7 @@ const callState = {
     callType: 'video', // 'audio' or 'video'
     pendingOffer: null,
     pendingCallerId: null,
+    iceCandidatesQueue: [],
     isMicMuted: false,
     isCamMuted: false
 };
@@ -1161,19 +1168,38 @@ const callState = {
 const rtcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.services.mozilla.com' },
+        { urls: 'stun:stun.cloudflare.com:3478' }
     ]
 };
+
+async function processQueuedIceCandidates() {
+    if (callState.peerConnection && callState.iceCandidatesQueue.length > 0) {
+        for (const candidate of callState.iceCandidatesQueue) {
+            try {
+                await callState.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.error('Error draining candidate:', e);
+            }
+        }
+        callState.iceCandidatesQueue = [];
+    }
+}
 
 async function startCall(callType) {
     if (!state.activeContact) return;
 
     callState.callType = callType;
     callState.targetUserId = state.activeContact.id;
+    callState.iceCandidatesQueue = [];
 
     try {
         const constraints = {
-            audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
             video: callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false
         };
 
@@ -1189,7 +1215,14 @@ async function startCall(callType) {
         });
 
         callState.peerConnection.ontrack = (event) => {
-            document.getElementById('remote-video').srcObject = event.streams[0];
+            const remoteVideo = document.getElementById('remote-video');
+            const remoteAudio = document.getElementById('remote-audio');
+            if (event.streams && event.streams[0]) {
+                remoteVideo.srcObject = event.streams[0];
+                remoteAudio.srcObject = event.streams[0];
+                remoteAudio.play().catch(e => console.warn('Audio play:', e));
+                remoteVideo.play().catch(e => console.warn('Video play:', e));
+            }
         };
 
         callState.peerConnection.onicecandidate = (event) => {
@@ -1224,7 +1257,7 @@ async function acceptIncomingCall() {
 
     try {
         const constraints = {
-            audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
             video: callState.callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false
         };
 
@@ -1239,7 +1272,14 @@ async function acceptIncomingCall() {
         });
 
         callState.peerConnection.ontrack = (event) => {
-            document.getElementById('remote-video').srcObject = event.streams[0];
+            const remoteVideo = document.getElementById('remote-video');
+            const remoteAudio = document.getElementById('remote-audio');
+            if (event.streams && event.streams[0]) {
+                remoteVideo.srcObject = event.streams[0];
+                remoteAudio.srcObject = event.streams[0];
+                remoteAudio.play().catch(e => console.warn('Audio play:', e));
+                remoteVideo.play().catch(e => console.warn('Video play:', e));
+            }
         };
 
         callState.peerConnection.onicecandidate = (event) => {
@@ -1252,6 +1292,8 @@ async function acceptIncomingCall() {
         };
 
         await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(callState.pendingOffer));
+        await processQueuedIceCandidates();
+
         const answer = await callState.peerConnection.createAnswer();
         await callState.peerConnection.setLocalDescription(answer);
 
@@ -1273,6 +1315,7 @@ function rejectIncomingCall() {
     }
     callState.pendingOffer = null;
     callState.pendingCallerId = null;
+    callState.iceCandidatesQueue = [];
 }
 
 function endCurrentCall() {
@@ -1290,14 +1333,20 @@ function endCurrentCall() {
         callState.localStream = null;
     }
 
+    const remoteVideo = document.getElementById('remote-video');
+    const remoteAudio = document.getElementById('remote-audio');
+    if (remoteVideo) remoteVideo.srcObject = null;
+    if (remoteAudio) remoteAudio.srcObject = null;
     document.getElementById('local-video').srcObject = null;
-    document.getElementById('remote-video').srcObject = null;
+
     document.getElementById('active-call-modal').classList.add('hidden');
     document.getElementById('incoming-call-modal').classList.add('hidden');
 
     callState.targetUserId = null;
     callState.pendingOffer = null;
+    callState.iceCandidatesQueue = [];
 }
+
 
 function toggleMuteMic() {
     if (!callState.localStream) return;
