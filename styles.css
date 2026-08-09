@@ -1041,11 +1041,21 @@ input, textarea {
     50% { opacity: 0.3; }
 }
 
-.remote-video, .local-video {
+.remote-video {
+    object-fit: contain !important;
+    background: #090d16;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transform: translateZ(0);
+}
+
+.local-video {
     object-fit: cover;
     image-rendering: -webkit-optimize-contrast;
     image-rendering: crisp-edges;
     transform: translateZ(0);
+}
+
 .btn-cancel-rec {
     margin-left: auto;
 
