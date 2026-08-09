@@ -184,8 +184,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.location.protocol === 'file:') {
         showAuthAlert('⚠️ Bitte öffne die Anwendung im Browser über http://localhost:3000 (nicht über die Datei-URL file:///).', 'error');
     }
-    checkAuthSession();
+    checkSiteAccess();
 });
+
 
 
 
@@ -429,6 +430,52 @@ function showAuthAlert(message, type = 'error') {
     alertBox.classList.remove('hidden');
 }
 
+function checkSiteAccess() {
+    const siteToken = localStorage.getItem('anonmesh_site_token');
+    const gateView = document.getElementById('site-gate-view');
+    
+    if (siteToken) {
+        if (gateView) gateView.classList.add('hidden');
+        checkAuthSession();
+    } else {
+        if (gateView) gateView.classList.remove('hidden');
+        document.getElementById('auth-view').classList.add('hidden');
+        document.getElementById('app-view').classList.add('hidden');
+    }
+}
+
+async function handleSiteGateSubmit(e) {
+    e.preventDefault();
+    const passcode = document.getElementById('site-passcode-input').value.trim();
+    const alertBox = document.getElementById('site-gate-alert');
+
+    if (!passcode) return;
+
+    try {
+        const response = await fetch('/api/auth/site-gate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ passcode })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            alertBox.textContent = data.error || 'Falsches Zugangspasswort.';
+            alertBox.className = 'alert error';
+            alertBox.classList.remove('hidden');
+            return;
+        }
+
+        localStorage.setItem('anonmesh_site_token', data.siteToken);
+        document.getElementById('site-gate-view').classList.add('hidden');
+        checkAuthSession();
+    } catch (err) {
+        alertBox.textContent = 'Netzwerkfehler beim Anmelden.';
+        alertBox.className = 'alert error';
+        alertBox.classList.remove('hidden');
+    }
+}
+
 async function checkAuthSession() {
     // Instant session restore from localStorage on page refresh
     const savedUserStr = localStorage.getItem('anonmesh_user');
@@ -448,6 +495,7 @@ async function checkAuthSession() {
         });
 
         if (response.ok) {
+
             const data = await response.json();
             state.currentUser = data.user;
             localStorage.setItem('anonmesh_user', JSON.stringify(data.user));

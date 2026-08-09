@@ -231,8 +231,30 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
 
 
     <!-- ==================================================== -->
+    <!-- 0. SITE PASSCODE GATE VIEW (Protected Access)        -->
+    <!-- ==================================================== -->
+    <div id="site-gate-view" class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="brand-logo" style="display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🔒</div>
+                <h2>Geschütztes Portal</h2>
+                <p>Nutzer-Authentifizierung erforderlich. Bitte Zugangspasswort eingeben.</p>
+            </div>
+            <form id="site-gate-form" onsubmit="handleSiteGateSubmit(event)">
+                <div class="form-group">
+                    <label for="site-passcode-input">Zugangspasswort</label>
+                    <input type="password" id="site-passcode-input" placeholder="Website-Passwort eingeben" required autocomplete="current-password">
+                </div>
+                <div id="site-gate-alert" class="alert hidden" style="margin-top: 10px;"></div>
+                <button type="submit" class="btn btn-primary" style="margin-top: 16px; width: 100%;">Zugang freischalten 🔓</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================================================== -->
     <!-- 1. AUTHENTICATION VIEW (Login / Registration)        -->
     <!-- ==================================================== -->
+
     <div id="auth-view" class="auth-container">
         <div class="auth-card">
             <!-- Brand Logo & Header -->

@@ -249,8 +249,34 @@ function authenticateToken(req, res, next) {
 }
 
 // ----------------------------------------------------
+// SITE-WIDE ACCESS PASSCODE GATE (Zero-Client-Knowledge Encryption)
+// ----------------------------------------------------
+const SITE_PASSCODE = process.env.SITE_PASSCODE || 'AnonMesh2026!';
+const SITE_PASSCODE_HASH = bcrypt.hashSync(SITE_PASSCODE, 10);
+
+app.post('/api/auth/site-gate', async (req, res) => {
+    try {
+        const { passcode } = req.body;
+        if (!passcode) {
+            return res.status(400).json({ error: 'Bitte Zugangspasswort eingeben.' });
+        }
+
+        const isMatch = await bcrypt.compare(passcode, SITE_PASSCODE_HASH);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Falsches Zugangspasswort. Zugriff verweigert.' });
+        }
+
+        const siteToken = jwt.sign({ site_access: true }, JWT_SECRET, { expiresIn: '90d' });
+        res.json({ message: 'Zugang gewährt!', siteToken });
+    } catch (e) {
+        res.status(500).json({ error: 'Serverfehler bei der Zugangsprüfung.' });
+    }
+});
+
+// ----------------------------------------------------
 // REST API Routes
 // ----------------------------------------------------
+
 
 // 1. User Registration
 app.post('/api/auth/register', async (req, res) => {
