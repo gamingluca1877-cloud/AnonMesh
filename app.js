@@ -1704,38 +1704,29 @@ function optimizeVideoBitrate(peerConnection) {
 async function getMediaStream(callType) {
     if (callType === 'video') {
         try {
-            // High Resolution Full HD Camera Constraints
             return await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
-                video: {
-                    width: { ideal: 1920, min: 1280 },
-                    height: { ideal: 1080, min: 720 },
-                    frameRate: { ideal: 30, min: 24 },
-                    facingMode: 'user'
-                }
+                audio: true,
+                video: { width: { ideal: 1280 }, height: { ideal: 720 } }
             });
         } catch (e1) {
-            console.warn('HD camera constraint fallback 1:', e1);
+            console.warn('Video stream fallback 1:', e1);
             try {
-                return await navigator.mediaDevices.getUserMedia({
-                    audio: true,
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }
-                });
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
             } catch (e2) {
-                console.warn('HD camera constraint fallback 2:', e2);
-                try {
-                    return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-                } catch (e3) {
-                    return await navigator.mediaDevices.getUserMedia({ audio: true });
-                }
+                console.warn('Video stream fallback 2 (audio only):', e2);
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
             }
         }
     } else {
-        return await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 }
-        });
+        try {
+            return await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e1) {
+            console.warn('Audio stream fallback:', e1);
+            return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        }
     }
 }
+
 
 let callTimerInterval = null;
 let callTimerSeconds = 0;
