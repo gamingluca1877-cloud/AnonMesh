@@ -808,7 +808,14 @@ io.on('connection', (socket) => {
     // ----------------------------------------------------
     // WebRTC HD Audio/Video Call Signaling
     // ----------------------------------------------------
+    socket.on('call_audio_chunk', ({ receiver_id, audioData }) => {
+        if (receiver_id && audioData) {
+            io.to(`user_${receiver_id}`).emit('incoming_call_audio', { sender_id: userId, audioData });
+        }
+    });
+
     socket.on('call_user', ({ receiver_id, offer, call_type }) => {
+
         if (receiver_id) {
             io.to(`user_${receiver_id}`).emit('incoming_call', {
                 caller_id: userId,
