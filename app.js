@@ -1701,31 +1701,38 @@ function optimizeVideoBitrate(peerConnection) {
     }
 }
 
-async function getMediaStream(callType) {
-    if (callType === 'video') {
-        try {
-            return await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: { width: { ideal: 1280 }, height: { ideal: 720 } }
-            });
-        } catch (e1) {
-            console.warn('Video stream fallback 1:', e1);
-            try {
-                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            } catch (e2) {
-                console.warn('Video stream fallback 2 (audio only):', e2);
-                return await navigator.mediaDevices.getUserMedia({ audio: true });
-            }
-        }
-    } else {
-        try {
-            return await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (e1) {
-            console.warn('Audio stream fallback:', e1);
-            return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        }
+function createSilentMediaStream() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const dst = ctx.createMediaStreamDestination();
+        osc.connect(dst);
+        osc.start();
+        const track = dst.stream.getAudioTracks()[0];
+        if (track) track.enabled = false;
+        return dst.stream;
+    } catch (e) {
+        return new MediaStream();
     }
 }
+
+async function getMediaStream(callType) {
+    try {
+        if (callType === 'video') {
+            try {
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            } catch (e1) {
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+        } else {
+            return await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+    } catch (err) {
+        console.warn('⚠️ Media device unavailable/blocked. Using silent synthetic stream fallback.', err);
+        return createSilentMediaStream();
+    }
+}
+
 
 
 let callTimerInterval = null;
@@ -1926,9 +1933,9 @@ async function startCall(callType) {
         });
 
     } catch (err) {
-        alert('ℹ️ Kamera/Mikrofon-Zugriff verweigert.\n\nSo aktivierst du den Ton & Kamera:\n1. Klicke oben links in der Adresszeile deines Browsers auf das Schloss-Icon 🔒 (neben https://anonmesh.onrender.com).\n2. Schalte "Mikrofon" und "Kamera" auf [ ZULASSEN ].\n3. Lade die Seite neu.');
-        endCurrentCall();
+        console.warn('Call connection error:', err);
     }
+
 
 }
 
