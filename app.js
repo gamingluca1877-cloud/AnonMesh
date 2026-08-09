@@ -1239,14 +1239,12 @@ async function handleProfilePictureSelected(e) {
         return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-        alert('Das Bild darf maximal 10 MB groß sein.');
-        return;
-    }
-
     const reader = new FileReader();
     reader.onload = async (event) => {
-        const avatarDataUrl = event.target.result;
+        let avatarDataUrl = event.target.result;
+        // Compress avatar photo to lightweight 500x500px image (~30-50KB)
+        avatarDataUrl = await compressImage(avatarDataUrl, 500, 0.85);
+
         try {
             const response = await fetch('/api/users/profile-picture', {
                 method: 'PUT',
@@ -1271,7 +1269,9 @@ async function handleProfilePictureSelected(e) {
             myAvatar.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
             
             const settingsPreview = document.getElementById('settings-avatar-preview');
-            settingsPreview.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+            if (settingsPreview) {
+                settingsPreview.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+            }
 
             alert('Profilbild erfolgreich aktualisiert!');
         } catch (err) {
@@ -1280,6 +1280,7 @@ async function handleProfilePictureSelected(e) {
     };
     reader.readAsDataURL(file);
 }
+
 
 // ----------------------------------------------------
 // FILE & IMAGE ATTACHMENTS (E2EE & Image Compression)
