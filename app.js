@@ -1909,27 +1909,7 @@ async function startCall(callType) {
                 }
             }
         };
- const remoteVideo = document.getElementById('remote-video');
-            let remoteAudio = document.getElementById('remote-audio');
-            if (!remoteAudio) {
-                remoteAudio = document.createElement('audio');
-                remoteAudio.id = 'remote-audio';
-                remoteAudio.autoplay = true;
-                remoteAudio.playsInline = true;
-                document.body.appendChild(remoteAudio);
-            }
-            if (event.streams && event.streams[0]) {
-                remoteAudio.srcObject = event.streams[0];
-                remoteAudio.volume = 1.0;
-                remoteAudio.muted = false;
-                remoteAudio.play().catch(e => console.warn('Audio play:', e));
 
-                if (remoteVideo) {
-                    remoteVideo.srcObject = event.streams[0];
-                    remoteVideo.play().catch(e => console.warn('Video play:', e));
-                }
-            }
-        };
 
 
         callState.peerConnection.onicecandidate = (event) => {
