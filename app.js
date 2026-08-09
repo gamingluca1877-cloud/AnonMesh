@@ -376,11 +376,16 @@ function showAppView() {
     document.getElementById('app-view').classList.remove('hidden');
 
     // Set Header Profile Info
-    const myAvatar = document.getElementById('my-avatar');
-    myAvatar.textContent = state.currentUser.username.charAt(0).toUpperCase();
-    myAvatar.style.backgroundColor = state.currentUser.avatar_color || '#3b82f6';
-    
     document.getElementById('my-username').textContent = state.currentUser.username;
+    
+    const myAvatar = document.getElementById('my-avatar');
+    if (state.currentUser.avatar_url) {
+        myAvatar.innerHTML = `<img src="${state.currentUser.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+    } else {
+        myAvatar.textContent = state.currentUser.username.charAt(0).toUpperCase();
+        myAvatar.style.backgroundColor = state.currentUser.avatar_color || '#06b6d4';
+    }
+    
     document.getElementById('my-email').textContent = state.currentUser.email;
 
     // Connect WebSocket
@@ -577,9 +582,13 @@ function renderContactsList(filterText = '') {
         const timeStr = formatTime(contact.last_message_time);
         const lastMsg = contact.last_message ? escapeHtml(contact.last_message) : 'Keine Nachrichten';
 
+        const avatarHtml = contact.avatar_url 
+            ? `<img src="${contact.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` 
+            : initial;
+
         item.innerHTML = `
             <div class="avatar-wrapper">
-                <div class="avatar" style="background-color: ${avatarColor};">${initial}</div>
+                <div class="avatar" style="background-color: ${avatarColor};">${avatarHtml}</div>
                 <div class="status-dot ${contact.is_online ? 'online' : 'offline'}"></div>
             </div>
             <div class="contact-details">
@@ -593,6 +602,7 @@ function renderContactsList(filterText = '') {
                 </div>
             </div>
         `;
+
 
         container.appendChild(item);
     });
@@ -683,10 +693,15 @@ async function selectContact(contact) {
 
     // Set Header Data
     const avatarEl = document.getElementById('chat-avatar');
-    avatarEl.textContent = contact.username.charAt(0).toUpperCase();
-    avatarEl.style.backgroundColor = contact.avatar_color || '#3b82f6';
+    if (contact.avatar_url) {
+        avatarEl.innerHTML = `<img src="${contact.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+    } else {
+        avatarEl.textContent = contact.username.charAt(0).toUpperCase();
+        avatarEl.style.backgroundColor = contact.avatar_color || '#3b82f6';
+    }
 
     document.getElementById('chat-username').textContent = contact.username;
+
     
     const statusEl = document.getElementById('chat-status');
     statusEl.textContent = contact.is_online ? 'Online' : 'Offline';
@@ -948,11 +963,21 @@ function openSettingsModal() {
 
     if (state.currentUser) {
         input.value = state.currentUser.username;
+        const settingsPreview = document.getElementById('settings-avatar-preview');
+        if (settingsPreview) {
+            if (state.currentUser.avatar_url) {
+                settingsPreview.innerHTML = `<img src="${state.currentUser.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+            } else {
+                settingsPreview.textContent = state.currentUser.username.charAt(0).toUpperCase();
+                settingsPreview.style.backgroundColor = state.currentUser.avatar_color || '#06b6d4';
+            }
+        }
     }
     feedback.className = 'alert hidden';
     modal.classList.remove('hidden');
     input.focus();
 }
+
 
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.add('hidden');
