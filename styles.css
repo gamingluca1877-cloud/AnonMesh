@@ -721,10 +721,14 @@ input, textarea {
 /* CHAT INPUT AREA */
 .chat-input-area {
     padding: 14px 20px;
-    background: var(--bg-sidebar);
+    background: rgba(10, 15, 26, 0.95);
+    backdrop-filter: blur(16px);
     border-top: 1px solid var(--border-color);
     position: relative;
+    z-index: 50;
+    flex-shrink: 0;
 }
+
 
 .emoji-picker {
     position: absolute;
