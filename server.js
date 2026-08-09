@@ -92,9 +92,13 @@ db.serialize(() => {
         )
     `);
 
-    // Restore registered accounts from backup if DB restarted
-    setTimeout(restoreUsersFromBackup, 500);
+    // Restore registered accounts from backup if DB restarted, then sync backup file
+    setTimeout(() => {
+        restoreUsersFromBackup();
+        saveUsersBackup();
+    }, 500);
 });
+
 
 // ----------------------------------------------------
 // Persistent Users Backup Engine (JSON File Backup)

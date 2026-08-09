@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "email": "gamingluca1877@gmail.com",
+    "username": "Luca1877",
+    "password_hash": "$2a$10$QI34aLieC996EZoIMxONk.0rkyeJKqhVLC.d8h.xMAgtnvOwJ/eVW",
+    "avatar_color": "#06b6d4",
+    "avatar_url": null,
+    "created_at": "2026-08-09 12:36:59"
+  },
+  {
+    "id": 2,
+    "email": "bremen.verkauf.1zu1@gmail.com",
+    "username": "test1312",
+    "password_hash": "$2a$10$T0nID4ntNXhHZ9a019ci0edXy/Gbhpd9E.SXq6jBsmOx8IfXJvzEu",
+    "avatar_color": "#f59e0b",
+    "avatar_url": null,
+    "created_at": "2026-08-09 12:40:05"
+  }
+]
