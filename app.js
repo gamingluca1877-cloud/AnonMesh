@@ -1845,8 +1845,10 @@ function unlockCallAudio() {
 async function startCall(callType) {
     if (!state.activeContact) return;
 
-    // Pre-unlock audio element inside user click gesture for browser autoplay policies
+    // INSTANT 0MS OPEN OF WHATSAPP CALL SCREEN
     unlockCallAudio();
+    const activeCallModal = document.getElementById('active-call-modal');
+    if (activeCallModal) activeCallModal.classList.remove('hidden');
 
     callState.callType = callType;
     callState.targetUserId = state.activeContact.id;
@@ -1871,13 +1873,14 @@ async function startCall(callType) {
         startAudioStreamer(callState.targetUserId);
 
         const localVideo = document.getElementById('local-video');
-        localVideo.srcObject = callState.localStream;
-        localVideo.style.display = callType === 'video' ? 'block' : 'none';
-        localVideo.play().catch(e => console.warn('Local video play:', e));
-
-        document.getElementById('active-call-modal').classList.remove('hidden');
+        if (localVideo) {
+            localVideo.srcObject = callState.localStream;
+            localVideo.style.display = callType === 'video' ? 'block' : 'none';
+            localVideo.play().catch(e => console.warn('Local video play:', e));
+        }
 
         callState.peerConnection = new RTCPeerConnection(rtcConfig);
+
 
         callState.localStream.getTracks().forEach(track => {
             track.enabled = true;
