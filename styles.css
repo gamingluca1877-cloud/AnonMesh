@@ -1041,8 +1041,14 @@ input, textarea {
     50% { opacity: 0.3; }
 }
 
+.remote-video, .local-video {
+    object-fit: cover;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transform: translateZ(0);
 .btn-cancel-rec {
     margin-left: auto;
+
     background: transparent;
     border: none;
     color: #ef4444;

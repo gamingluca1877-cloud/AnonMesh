@@ -1236,28 +1236,59 @@ async function processQueuedIceCandidates() {
     }
 }
 
+function optimizeVideoBitrate(peerConnection) {
+    if (!peerConnection) return;
+    try {
+        const senders = peerConnection.getSenders();
+        senders.forEach(sender => {
+            if (sender.track && sender.track.kind === 'video') {
+                const parameters = sender.getParameters();
+                if (!parameters.encodings || parameters.encodings.length === 0) {
+                    parameters.encodings = [{}];
+                }
+                // Force Crisp HD 1080p Video Bitrate (3.5 Mbps)
+                parameters.encodings[0].maxBitrate = 3500000;
+                parameters.encodings[0].maxFramerate = 30;
+                sender.setParameters(parameters).catch(e => console.warn('Bitrate tuning:', e));
+            }
+        });
+    } catch (e) {
+        console.warn('optimizeVideoBitrate error:', e);
+    }
+}
+
 async function getMediaStream(callType) {
     if (callType === 'video') {
         try {
+            // High Resolution Full HD Camera Constraints
             return await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-                video: { facingMode: 'user' }
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 },
+                video: {
+                    width: { ideal: 1920, min: 1280 },
+                    height: { ideal: 1080, min: 720 },
+                    frameRate: { ideal: 30, min: 24 },
+                    facingMode: 'user'
+                }
             });
         } catch (e1) {
-            console.warn('FacingMode constraint fallback:', e1);
+            console.warn('HD camera constraint fallback 1:', e1);
             try {
                 return await navigator.mediaDevices.getUserMedia({
                     audio: true,
-                    video: true
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } }
                 });
             } catch (e2) {
-                console.warn('Generic video constraint fallback:', e2);
-                return await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.warn('HD camera constraint fallback 2:', e2);
+                try {
+                    return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                } catch (e3) {
+                    return await navigator.mediaDevices.getUserMedia({ audio: true });
+                }
             }
         }
     } else {
         return await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000 }
         });
     }
 }
@@ -1311,6 +1342,7 @@ async function startCall(callType) {
             offerToReceiveVideo: callType === 'video'
         });
         await callState.peerConnection.setLocalDescription(offer);
+        optimizeVideoBitrate(callState.peerConnection);
 
         state.socket.emit('call_user', {
             receiver_id: callState.targetUserId,
@@ -1372,6 +1404,7 @@ async function acceptIncomingCall() {
 
         const answer = await callState.peerConnection.createAnswer();
         await callState.peerConnection.setLocalDescription(answer);
+        optimizeVideoBitrate(callState.peerConnection);
 
         state.socket.emit('answer_call', {
             receiver_id: callState.targetUserId,
@@ -1383,6 +1416,7 @@ async function acceptIncomingCall() {
         rejectIncomingCall();
     }
 }
+
 
 
 
