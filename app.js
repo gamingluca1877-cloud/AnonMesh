@@ -241,7 +241,14 @@ function showAuthAlert(message, type = 'error') {
 }
 
 async function checkAuthSession() {
-    if (!state.token) {
+    // Instant session restore from localStorage on page refresh
+    const savedUserStr = localStorage.getItem('anonmesh_user');
+    if (state.token && savedUserStr) {
+        try {
+            state.currentUser = JSON.parse(savedUserStr);
+            showAppView();
+        } catch(e) {}
+    } else if (!state.token) {
         showAuthView();
         return;
     }
@@ -251,18 +258,21 @@ async function checkAuthSession() {
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
 
-        if (!response.ok) {
-            throw new Error('Sitzung abgelaufen.');
+        if (response.ok) {
+            const data = await response.json();
+            state.currentUser = data.user;
+            localStorage.setItem('anonmesh_user', JSON.stringify(data.user));
+            showAppView();
+        } else if (response.status === 401 || response.status === 403) {
+            // Only force logout if server explicitly invalidates token
+            handleLogout();
         }
-
-        const data = await response.json();
-        state.currentUser = data.user;
-        showAppView();
     } catch (error) {
-        console.warn('Session invalid:', error.message);
-        handleLogout();
+        console.warn('Session verify network warning:', error.message);
+        // Keep session active on temporary refresh/network reconnect
     }
 }
+
 
 async function handleLogin(e) {
     e.preventDefault();
@@ -290,6 +300,7 @@ async function handleLogin(e) {
         state.token = data.token;
         state.currentUser = data.user;
         localStorage.setItem('anonmesh_token', data.token);
+        localStorage.setItem('anonmesh_user', JSON.stringify(data.user));
 
         showAppView();
     } catch (err) {
@@ -325,6 +336,7 @@ async function handleRegister(e) {
         state.token = data.token;
         state.currentUser = data.user;
         localStorage.setItem('anonmesh_token', data.token);
+        localStorage.setItem('anonmesh_user', JSON.stringify(data.user));
 
         showAppView();
     } catch (err) {
@@ -338,6 +350,7 @@ function handleLogout() {
     state.activeContact = null;
     state.contacts = [];
     localStorage.removeItem('anonmesh_token');
+    localStorage.removeItem('anonmesh_user');
 
     if (state.socket) {
         state.socket.disconnect();
@@ -856,6 +869,8 @@ async function handleUpdateUsername(e) {
         state.currentUser.username = newUsername;
         state.token = data.token;
         localStorage.setItem('anonmesh_token', data.token);
+        localStorage.setItem('anonmesh_user', JSON.stringify(state.currentUser));
+
 
         // Update Profile Header UI
         document.getElementById('my-username').textContent = newUsername;
