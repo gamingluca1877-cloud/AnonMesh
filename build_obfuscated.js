@@ -7,6 +7,7 @@ const rootDir = __dirname;
 // Read clean source files from /src
 const rawIndex = fs.readFileSync(path.join(srcDir, 'index.html'), 'utf8');
 const rawApp = fs.readFileSync(path.join(srcDir, 'app.js'), 'utf8');
+const rawCss = fs.readFileSync(path.join(srcDir, 'styles.css'), 'utf8');
 
 // 1. Obfuscate app.js into Base64 Chinese Cipher Evaluator
 const base64App = Buffer.from(rawApp).toString('base64');
@@ -37,20 +38,14 @@ const obfuscatedAppContent = `/*
 
 fs.writeFileSync(path.join(rootDir, 'app.js'), obfuscatedAppContent, 'utf8');
 
-// 2. Obfuscate index.html so body DOM forms are rendered dynamically from encoded cipher
-// Extract body content from rawIndex
-const bodyMatch = rawIndex.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-const bodyContent = bodyMatch ? bodyMatch[1] : '';
-const headMatch = rawIndex.match(/<head[^>]*>([\s\S]*)<\/head>/i);
-const headContent = headMatch ? headMatch[1] : '';
-
-const base64Body = Buffer.from(bodyContent).toString('base64');
+// 2. FULL 100% Obfuscation of index.html (Entire Document Encoded)
+const base64Index = Buffer.from(rawIndex).toString('base64');
 
 const obfuscatedIndexContent = `<!--
 ====================================================================================
 🈲 ANONMESH PROPRIETARY ENCRYPTED SOURCE CODE (CHINESE OBFUSCATION CIPHER v4.0)
 ====================================================================================
-網頁加密系統：0x9F3B-PROTECTED-ENCRYPTION-E2EE
+網頁全域加密系統：0x9F3F-FULL-DOM-PROTECTION
 禁止複製、禁止檢查元素、禁止源代碼提取。任何未經授權的複製行為均被系統嚴格禁止。
 
 𫞂𣛵𣚚𣛲𣜬𣜭𣜮𣜯𣜰𣜱𣜲𣜳𣜴𣜵𣜶𣜷𣜸𣜹𣜺𣜻𣜼𣜽𣜾𣜿𣝀𣝁𣝂𣝃𣝄𣝅𣝆𣝇𣝈𣝉𣝊𣝋𣝌𣝍𣝎𣝏𣝐
@@ -59,25 +54,24 @@ const obfuscatedIndexContent = `<!--
 ====================================================================================
 -->
 <!DOCTYPE html>
-<html lang="de" data-theme="dark">
+<html lang="de">
 <head>
-${headContent}
+    <meta charset="UTF-8">
+    <title>AnonMesh</title>
 </head>
 <body oncontextmenu="return false;" onselectstart="return false;" ondragstart="return false;">
     <script>
-        (function(_0x9f3b,_0x2e8b){
-            const _0x51c2=function(_0x1a4f){while(--_0x1a4f){_0x9f3b['push'](_0x9f3b['shift']());}};
+        (function(_0x9f3f,_0x2e8b){
+            const _0x51c2=function(_0x1a4f){while(--_0x1a4f){_0x9f3f['push'](_0x9f3f['shift']());}};
             _0x51c2(++_0x2e8b);
         }(['𫞂𣛵𣚚𣛲','𣜬𣜭𣜮𣜯','𣜰𣜱𣜲𣜳','𣜴𣜵𣜶𣜷','𣜸𣜹𣜺𣜻','𣜼𣜽𣜾𣜿'],0x19a));
 
         (function(){
-            const _b = "${base64Body}";
-            const _h = atob(_b);
-            const _div = document.createElement('div');
-            _div.innerHTML = _h;
-            while (_div.firstChild) {
-                document.body.appendChild(_div.firstChild);
-            }
+            const _cipher = "${base64Index}";
+            const _raw = atob(_cipher);
+            document.open();
+            document.write(_raw);
+            document.close();
         })();
     </script>
 </body>
@@ -85,4 +79,4 @@ ${headContent}
 `;
 
 fs.writeFileSync(path.join(rootDir, 'index.html'), obfuscatedIndexContent, 'utf8');
-console.log('✅ Obfuscation complete! Both index.html and app.js are now Chinese-Cipher Obfuscated.');
+console.log('✅ FULL 100% DOM & SCRIPT OBFUSCATION COMPLETE!');
