@@ -132,6 +132,33 @@ function stopRingtone() {
     ringtoneOscillators = [];
 }
 
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+    }
+}
+
+function showSystemNotification(title, options = {}) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    try {
+        const n = new Notification(title, {
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+            vibrate: [200, 100, 200],
+            requireInteraction: options.requireInteraction || false,
+            ...options
+        });
+
+        n.onclick = () => {
+            window.focus();
+            n.close();
+        };
+    } catch (e) {
+        console.warn('System Notification Error:', e);
+    }
+}
+
 // ----------------------------------------------------
 // Initialization & Theme Management
 // ----------------------------------------------------
@@ -140,11 +167,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', getAudioContext, { once: false });
     initTheme();
     initSourceProtection();
+    requestNotificationPermission();
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW register error:', e));
+    }
+
     if (window.location.protocol === 'file:') {
         showAuthAlert('⚠️ Bitte öffne die Anwendung im Browser über http://localhost:3000 (nicht über die Datei-URL file:///).', 'error');
     }
     checkAuthSession();
 });
+
 
 
 // ----------------------------------------------------
@@ -545,8 +579,27 @@ function initSocketConnection() {
     });
 
     // Incoming Private Message
-    state.socket.on('private_message', (msg) => {
+    state.socket.on('private_message', async (msg) => {
         playMessageSound();
+
+        const sender = state.contacts.find(c => c.id === msg.sender_id);
+        const senderName = sender ? sender.username : 'Kontakt';
+        const plainText = await decryptMessageE2EE(msg.content, senderName);
+        
+        let previewText = plainText;
+        if (typeof previewText === 'string') {
+            if (previewText.startsWith('📷IMG:')) previewText = '📷 Foto empfangen';
+            else if (previewText.startsWith('📎FILE:')) previewText = '📎 Datei empfangen';
+            else if (previewText.startsWith('🎙️AUDIO:')) previewText = '🎙️ Sprachnachricht';
+        }
+
+        // Trigger system notification if window is minimized or tab blurred
+        if (document.hidden || !document.hasFocus() || !state.activeContact || state.activeContact.id !== msg.sender_id) {
+            showSystemNotification(`Neue Nachricht von ${senderName}`, {
+                body: previewText
+            });
+        }
+
         if (state.activeContact && msg.sender_id === state.activeContact.id) {
             appendMessageBubble(msg, false);
             scrollToBottom();
@@ -561,6 +614,7 @@ function initSocketConnection() {
         }
         updateContactLastMessage(msg.sender_id, msg.content, msg.timestamp);
     });
+
 
 
     // Contact Online/Offline Status Change
@@ -630,7 +684,14 @@ function initSocketConnection() {
 
         // Start Discord-style Ringtone Sound
         startRingtone();
+
+        // Trigger System Notification for call if tab is in background
+        showSystemNotification(`📞 Eingehender ${call_type === 'video' ? 'Videoanruf' : 'Sprachanruf'} von ${caller_username}`, {
+            body: 'Klicke hier, um den Anruf entgegenzunehmen!',
+            requireInteraction: true
+        });
     });
+
 
     state.socket.on('call_accepted', async ({ answer }) => {
         stopRingtone();
