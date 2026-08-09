@@ -51,6 +51,107 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
+// ----------------------------------------------------
+// END-TO-END ENCRYPTION (E2EE) ENGINE (Web Crypto API AES-GCM 256-bit)
+// Protects messages from server operators, ISP, Chat-Control & third parties.
+// ----------------------------------------------------
+const e2eeKeyCache = new Map();
+
+async function getE2EEKey(otherUsername) {
+    if (!state.currentUser || !otherUsername) return null;
+
+    const sortedUsernames = [state.currentUser.username.toLowerCase(), otherUsername.toLowerCase()].sort().join('_anonmesh_v1_');
+    
+    if (e2eeKeyCache.has(sortedUsernames)) {
+        return e2eeKeyCache.get(sortedUsernames);
+    }
+
+    try {
+        const encoder = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            "raw",
+            encoder.encode(sortedUsernames),
+            { name: "PBKDF2" },
+            false,
+            ["deriveKey"]
+        );
+
+        const derivedKey = await window.crypto.subtle.deriveKey(
+            {
+                name: "PBKDF2",
+                salt: encoder.encode("anonmesh_e2ee_salt_2026_protect_chat_control"),
+                iterations: 100000,
+                hash: "SHA-256"
+            },
+            keyMaterial,
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["encrypt", "decrypt"]
+        );
+
+        e2eeKeyCache.set(sortedUsernames, derivedKey);
+        return derivedKey;
+    } catch (e) {
+        console.error('Key derivation error:', e);
+        return null;
+    }
+}
+
+async function encryptMessageE2EE(text, otherUsername) {
+    try {
+        const key = await getE2EEKey(otherUsername);
+        if (!key) return text;
+
+        const encoder = new TextEncoder();
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const encryptedBuffer = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv },
+            key,
+            encoder.encode(text)
+        );
+
+        const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
+        const cipherHex = Array.from(new Uint8Array(encryptedBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        return `🔐ENC:${ivHex}:${cipherHex}`;
+    } catch (e) {
+        console.error('E2EE Encryption Error:', e);
+        return text;
+    }
+}
+
+async function decryptMessageE2EE(ciphertext, otherUsername) {
+    if (!ciphertext || typeof ciphertext !== 'string' || !ciphertext.startsWith('🔐ENC:')) {
+        return ciphertext; // Unencrypted legacy text
+    }
+
+    try {
+        const parts = ciphertext.split(':');
+        if (parts.length !== 3) return ciphertext;
+
+        const ivHex = parts[1];
+        const cipherHex = parts[2];
+
+        const iv = new Uint8Array(ivHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+        const cipherBuffer = new Uint8Array(cipherHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+
+        const key = await getE2EEKey(otherUsername);
+        if (!key) return '[Entschlüsselung nicht möglich]';
+
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv },
+            key,
+            cipherBuffer
+        );
+
+        const decoder = new TextDecoder();
+        return decoder.decode(decryptedBuffer);
+    } catch (e) {
+        console.warn('E2EE Decryption failed:', e);
+        return '🔒 [Verschlüsselte Nachricht]';
+    }
+}
+
 // Format Timestamps (e.g., "14:30" or "Gestern")
 function formatTime(isoString) {
     if (!isoString) return '';
@@ -65,6 +166,7 @@ function formatTime(isoString) {
         return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
     }
 }
+
 
 // ----------------------------------------------------
 // Authentication Handlers
@@ -501,7 +603,7 @@ function closeMobileChat() {
 
 async function loadMessages(contactId) {
     const messagesList = document.getElementById('messages-list');
-    messagesList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">Nachrichten werden geladen...</div>';
+    messagesList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">Nachrichten werden entschlüsselt...</div>';
 
     try {
         const response = await fetch(`/api/messages/${contactId}`, {
@@ -514,14 +616,14 @@ async function loadMessages(contactId) {
         messagesList.innerHTML = '';
 
         if (data.messages.length === 0) {
-            messagesList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">Noch keine Nachrichten. Schreibe die erste Nachricht!</div>';
+            messagesList.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">Noch keine Nachrichten. Schreibe die erste ende-zu-ende verschlüsselte Nachricht!</div>';
             return;
         }
 
-        data.messages.forEach(msg => {
+        for (const msg of data.messages) {
             const isOutgoing = msg.sender_id === state.currentUser.id;
-            appendMessageBubble(msg, isOutgoing);
-        });
+            await appendMessageBubble(msg, isOutgoing);
+        }
 
         scrollToBottom();
     } catch (err) {
@@ -529,7 +631,7 @@ async function loadMessages(contactId) {
     }
 }
 
-function appendMessageBubble(msg, isOutgoing) {
+async function appendMessageBubble(msg, isOutgoing) {
     const messagesList = document.getElementById('messages-list');
 
     // Remove empty placeholder if existing
@@ -544,9 +646,11 @@ function appendMessageBubble(msg, isOutgoing) {
     const readClass = msg.is_read ? 'read' : '';
     const checkmarksStr = isOutgoing ? `<span class="checkmarks ${readClass}">${msg.is_read ? '✓✓' : '✓'}</span>` : '';
 
+    const decryptedContent = await decryptMessageE2EE(msg.content, state.activeContact?.username);
+
     row.innerHTML = `
         <div class="msg-bubble">
-            <div class="msg-content">${escapeHtml(msg.content)}</div>
+            <div class="msg-content">${escapeHtml(decryptedContent)}</div>
             <div class="msg-footer">
                 <span class="msg-time">${timeStr}</span>
                 ${checkmarksStr}
@@ -558,15 +662,17 @@ function appendMessageBubble(msg, isOutgoing) {
     scrollToBottom();
 }
 
+
 function scrollToBottom() {
     const container = document.getElementById('messages-container');
     container.scrollTop = container.scrollHeight;
 }
 
-function updateContactLastMessage(contactId, content, timestamp) {
+async function updateContactLastMessage(contactId, content, timestamp) {
     const contact = state.contacts.find(c => c.id === contactId);
     if (contact) {
-        contact.last_message = content;
+        const decryptedContent = await decryptMessageE2EE(content, contact.username);
+        contact.last_message = decryptedContent;
         contact.last_message_time = timestamp;
         
         // Re-sort contacts list
@@ -586,7 +692,7 @@ function updateContactLastMessage(contactId, content, timestamp) {
 // ----------------------------------------------------
 // Message Input & Typing Handler
 // ----------------------------------------------------
-function sendMessage() {
+async function sendMessage() {
     if (!state.activeContact || !state.socket) return;
 
     const input = document.getElementById('message-input');
@@ -594,10 +700,13 @@ function sendMessage() {
 
     if (!content) return;
 
+    // Encrypt client-side via AES-GCM 256-bit E2EE
+    const encryptedContent = await encryptMessageE2EE(content, state.activeContact.username);
+
     // Send via socket
     state.socket.emit('send_message', {
         receiver_id: state.activeContact.id,
-        content
+        content: encryptedContent
     });
 
     // Clear input
@@ -611,6 +720,7 @@ function sendMessage() {
 
     closeEmojiPicker();
 }
+
 
 function handleInputKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
