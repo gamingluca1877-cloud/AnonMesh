@@ -1935,9 +1935,10 @@ async function startCall(callType) {
         });
 
     } catch (err) {
-        alert('Kamera/Mikrofon-Zugriff verweigert.');
+        alert('ℹ️ Kamera/Mikrofon-Zugriff verweigert.\n\nSo aktivierst du den Ton & Kamera:\n1. Klicke oben links in der Adresszeile deines Browsers auf das Schloss-Icon 🔒 (neben https://anonmesh.onrender.com).\n2. Schalte "Mikrofon" und "Kamera" auf [ ZULASSEN ].\n3. Lade die Seite neu.');
         endCurrentCall();
     }
+
 }
 
 async function acceptIncomingCall() {
