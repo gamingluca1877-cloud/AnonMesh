@@ -326,19 +326,6 @@ app.post('/api/auth/register', async (req, res) => {
         email = email.trim().toLowerCase();
         username = username.trim();
 
-        // Validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return res.status(400).json({ error: 'Bitte gib eine gültige E-Mail-Adresse ein.' });
-        }
-
-        if (username.length < 3 || username.length > 20 || !/^[a-zA-Z0-9_]+$/.test(username)) {
-            return res.status(400).json({ error: 'Benutzername muss 3-20 Zeichen lang sein und darf nur Buchstaben, Zahlen & Unterstriche enthalten.' });
-        }
-
-        if (password.length < 6) {
-            return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen lang sein.' });
-        }
 
         // Hash password securely with bcrypt
         const salt = await bcrypt.genSalt(10);
