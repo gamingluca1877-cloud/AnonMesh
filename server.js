@@ -235,6 +235,61 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
     });
 });
 
+// 3b. Change Username
+app.put('/api/users/change-username', authenticateToken, (req, res) => {
+    let { newUsername } = req.body;
+
+    if (!newUsername) {
+        return res.status(400).json({ error: 'Bitte einen neuen Benutzernamen eingeben.' });
+    }
+
+    newUsername = newUsername.trim();
+
+    if (newUsername.length < 3 || newUsername.length > 20 || !/^[a-zA-Z0-9_]+$/.test(newUsername)) {
+        return res.status(400).json({ error: 'Benutzername muss 3-20 Zeichen lang sein und darf nur Buchstaben, Zahlen & Unterstriche enthalten.' });
+    }
+
+    if (newUsername.toLowerCase() === req.user.username.toLowerCase()) {
+        return res.status(400).json({ error: 'Der neue Benutzername ist identisch mit deinem aktuellen Namen.' });
+    }
+
+    // Check if newUsername is taken
+    const checkSql = `SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ?`;
+    db.get(checkSql, [newUsername, req.user.id], (err, existing) => {
+        if (err) {
+            return res.status(500).json({ error: 'Fehler bei der Überprüfung.' });
+        }
+        if (existing) {
+            return res.status(400).json({ error: 'Dieser Benutzername ist bereits vergeben.' });
+        }
+
+        // Update username
+        const updateSql = `UPDATE users SET username = ? WHERE id = ?`;
+        db.run(updateSql, [newUsername, req.user.id], function(err) {
+            if (err) {
+                return res.status(500).json({ error: 'Fehler beim Aktualisieren des Benutzernamens.' });
+            }
+
+            const token = jwt.sign(
+                { id: req.user.id, email: req.user.email, username: newUsername },
+                JWT_SECRET,
+                { expiresIn: '7d' }
+            );
+
+            res.json({
+                message: 'Benutzername erfolgreich geändert!',
+                token,
+                user: {
+                    id: req.user.id,
+                    email: req.user.email,
+                    username: newUsername
+                }
+            });
+        });
+    });
+});
+
+
 // 4. Get User Contacts (with online status, last message & unread count)
 app.get('/api/contacts', authenticateToken, (req, res) => {
     const userId = req.user.id;

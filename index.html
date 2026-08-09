@@ -161,8 +161,10 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
     .sidebar { width: 100%; border-right: none; }
     .chat-area { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100; display: none; }
     .app-container.mobile-chat-open .chat-area { display: flex; }
-    .mobile-back-btn { display: flex; margin-right: 4px; }
-}
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; animation: fadeIn 0.2s ease-out; }
+.modal-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); width: 100%; max-width: 400px; padding: 24px; box-shadow: var(--shadow-lg); }
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
     </style>
     <!-- Socket.io Client Script -->
     <script src="/socket.io/socket.io.js"></script>
@@ -256,6 +258,12 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                     </div>
                 </div>
                 <div class="header-actions">
+                    <button id="settings-btn" class="icon-btn" title="Einstellungen" onclick="openSettingsModal()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
                     <button id="theme-toggle-btn" class="icon-btn" title="Design wechseln (Dark/Light)" onclick="toggleTheme()">
                         <!-- Sun / Moon SVG Icon -->
                         <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -391,7 +399,34 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
         </main>
     </div>
 
+    <!-- ==================================================== -->
+    <!-- 3. SETTINGS MODAL DIALOG                             -->
+    <!-- ==================================================== -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>⚙️ Einstellungen</h3>
+                <button class="icon-btn" onclick="closeSettingsModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="settings-form" onsubmit="handleUpdateUsername(event)">
+                    <div class="form-group">
+                        <label for="settings-username">Benutzername ändern</label>
+                        <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px;">Über diesen Namen können dich andere Kontakte suchen & hinzufügen.</p>
+                        <input type="text" id="settings-username" placeholder="Neuer Username" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]+">
+                    </div>
+                    <div id="settings-feedback" class="alert hidden" style="margin-top: 10px;"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" style="background: var(--bg-main); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: var(--radius-sm); cursor: pointer;" onclick="closeSettingsModal()">Abbrechen</button>
+                        <button type="submit" class="btn btn-primary" style="margin-top: 0;">Speichern</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Application Script -->
     <script src="app.js"></script>
 </body>
 </html>
+

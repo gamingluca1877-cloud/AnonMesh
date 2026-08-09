@@ -771,3 +771,75 @@ document.addEventListener('click', (e) => {
         picker.classList.add('hidden');
     }
 });
+
+// ----------------------------------------------------
+// Settings & Change Username Logic
+// ----------------------------------------------------
+function openSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    const input = document.getElementById('settings-username');
+    const feedback = document.getElementById('settings-feedback');
+
+    if (state.currentUser) {
+        input.value = state.currentUser.username;
+    }
+    feedback.className = 'alert hidden';
+    modal.classList.remove('hidden');
+    input.focus();
+}
+
+function closeSettingsModal() {
+    document.getElementById('settings-modal').classList.add('hidden');
+}
+
+async function handleUpdateUsername(e) {
+    e.preventDefault();
+    const input = document.getElementById('settings-username');
+    const feedback = document.getElementById('settings-feedback');
+    const newUsername = input.value.trim();
+
+    if (!newUsername) return;
+
+    try {
+        const response = await fetch('/api/users/change-username', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({ newUsername })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            feedback.textContent = data.error || 'Fehler beim Ändern des Benutzernamens.';
+            feedback.className = 'alert error';
+            feedback.classList.remove('hidden');
+            return;
+        }
+
+        // Update local state & token
+        state.currentUser.username = newUsername;
+        state.token = data.token;
+        localStorage.setItem('anonmesh_token', data.token);
+
+        // Update Profile Header UI
+        document.getElementById('my-username').textContent = newUsername;
+        const myAvatar = document.getElementById('my-avatar');
+        myAvatar.textContent = newUsername.charAt(0).toUpperCase();
+
+        feedback.textContent = data.message;
+        feedback.className = 'alert success';
+        feedback.classList.remove('hidden');
+
+        setTimeout(() => {
+            closeSettingsModal();
+        }, 1500);
+
+    } catch (err) {
+        feedback.textContent = 'Netzwerkfehler beim Ändern des Benutzernamens.';
+        feedback.className = 'alert error';
+        feedback.classList.remove('hidden');
+    }
+}
+
