@@ -182,12 +182,19 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW register error:', e));
     }
 
-    if (window.location.protocol === 'file:') {
-        showAuthAlert('⚠️ Bitte öffne die Anwendung im Browser über http://localhost:3000 (nicht über die Datei-URL file:///).', 'error');
-    }
+    document.addEventListener('click', (e) => {
+        const endBtn = e.target.closest('#end-call-btn, .btn-end-call');
+        if (endBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            endCurrentCall();
+        }
+    });
+
     initMatrixRain();
     checkSiteAccess();
 });
+
 
 
 // ----------------------------------------------------
@@ -2057,6 +2064,12 @@ function rejectIncomingCall() {
 }
 
 function endCurrentCall() {
+    // 1. IMMEDIATELY HIDE ALL MODALS (0MS GUARANTEE)
+    const activeModal = document.getElementById('active-call-modal');
+    const incomingModal = document.getElementById('incoming-call-modal');
+    if (activeModal) activeModal.classList.add('hidden');
+    if (incomingModal) incomingModal.classList.add('hidden');
+
     stopRingtone();
     stopAudioStreamer();
 
@@ -2084,15 +2097,13 @@ function endCurrentCall() {
     if (remoteAudio) remoteAudio.srcObject = null;
     if (localVideo) localVideo.srcObject = null;
 
-    const activeModal = document.getElementById('active-call-modal');
-    const incomingModal = document.getElementById('incoming-call-modal');
-    if (activeModal) activeModal.classList.add('hidden');
-    if (incomingModal) incomingModal.classList.add('hidden');
-
     callState.targetUserId = null;
     callState.pendingOffer = null;
+    callState.isMicMuted = false;
+    callState.isCamMuted = false;
     callState.iceCandidatesQueue = [];
 }
+
 
 
 
