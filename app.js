@@ -1236,6 +1236,32 @@ async function processQueuedIceCandidates() {
     }
 }
 
+async function getMediaStream(callType) {
+    if (callType === 'video') {
+        try {
+            return await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+                video: { facingMode: 'user' }
+            });
+        } catch (e1) {
+            console.warn('FacingMode constraint fallback:', e1);
+            try {
+                return await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: true
+                });
+            } catch (e2) {
+                console.warn('Generic video constraint fallback:', e2);
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+        }
+    } else {
+        return await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+    }
+}
+
 async function startCall(callType) {
     if (!state.activeContact) return;
 
@@ -1244,12 +1270,7 @@ async function startCall(callType) {
     callState.iceCandidatesQueue = [];
 
     try {
-        const constraints = {
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: callType === 'video' ? { facingMode: 'user' } : false
-        };
-
-        callState.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        callState.localStream = await getMediaStream(callType);
         
         const localVideo = document.getElementById('local-video');
         localVideo.srcObject = callState.localStream;
@@ -1310,12 +1331,7 @@ async function acceptIncomingCall() {
     callState.targetUserId = callState.pendingCallerId;
 
     try {
-        const constraints = {
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-            video: callState.callType === 'video' ? { facingMode: 'user' } : false
-        };
-
-        callState.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        callState.localStream = await getMediaStream(callState.callType);
         
         const localVideo = document.getElementById('local-video');
         localVideo.srcObject = callState.localStream;
@@ -1367,6 +1383,7 @@ async function acceptIncomingCall() {
         rejectIncomingCall();
     }
 }
+
 
 
 function rejectIncomingCall() {
