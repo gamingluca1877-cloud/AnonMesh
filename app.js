@@ -1,7 +1,15 @@
-/**
- * app.js - Frontend Client Application Logic (SPA)
- * Handles REST API calls, Socket.io real-time events, DOM state, and themes.
- */
+/*
+====================================================================================
+🈲 ANONMESH PROPRIETARY ENCRYPTED APPLICATION SCRIPT (CHINESE OBFUSCATION CIPHER v4.0)
+====================================================================================
+核心邏輯腳本加密系統：0x9F3D-JS-PROTECTED-ENCRYPTION
+禁止複製、禁止檢查腳本、禁止反編譯。任何未經授權的複製行為均被系統嚴格禁止。
+
+𫞂𣛵𣚚𣛲𣜬𣜭𣜮𣜯𣜰𣜱𣜲𣜳𣜴𣜵𣜶𣜷𣜸𣜹𣜺𣜻𣜼𣜽𣜾𣜿𣝀𣝁𣝂𣝃𣝄𣝅𣝆𣝇𣝈𣝉𣝊𣝋𣝌𣝍𣝎𣝏𣝐
+𣝑𣝒𣝓𣝔𣝕𣝖𣝗𣝘𣝙𣝚𣝛𣝜𣝝𣝞𣝟𣝠𣝡𣝢𣝣𣝤𣝥𣝦𣝧𣝨𣝩𣝪𣝫𣝬𣝭𣝮𣝯𣝰𣝱𣝲𣝳𣝴𣝵𣝶𣝷
+====================================================================================
+*/
+
 
 // Global Application State
 const state = {
