@@ -91,7 +91,47 @@ db.serialize(() => {
             FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
         )
     `);
+
+    // Restore registered accounts from backup if DB restarted
+    setTimeout(restoreUsersFromBackup, 500);
 });
+
+// ----------------------------------------------------
+// Persistent Users Backup Engine (JSON File Backup)
+// ----------------------------------------------------
+const fs = require('fs');
+const BACKUP_FILE = path.join(__dirname, 'users_backup.json');
+
+function saveUsersBackup() {
+    const sql = `SELECT id, email, username, password_hash, avatar_color, avatar_url, created_at FROM users`;
+    db.all(sql, [], (err, rows) => {
+        if (!err && rows) {
+            try {
+                fs.writeFileSync(BACKUP_FILE, JSON.stringify(rows, null, 2), 'utf8');
+            } catch (e) {
+                console.error('Error writing users backup:', e.message);
+            }
+        }
+    });
+}
+
+function restoreUsersFromBackup() {
+    if (!fs.existsSync(BACKUP_FILE)) return;
+    try {
+        const data = fs.readFileSync(BACKUP_FILE, 'utf8');
+        const users = JSON.parse(data);
+        if (Array.isArray(users) && users.length > 0) {
+            const insertSql = `INSERT OR IGNORE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+            users.forEach(u => {
+                db.run(insertSql, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || null, u.created_at || new Date().toISOString()]);
+            });
+            console.log(`[+] Restored ${users.length} registered accounts from backup.`);
+        }
+    } catch (e) {
+        console.error('Error restoring users backup:', e.message);
+    }
+}
+
 
 // Helper colors for user avatars
 const AVATAR_COLORS = [
@@ -172,14 +212,17 @@ app.post('/api/auth/register', async (req, res) => {
             }
 
             const userId = this.lastID;
-            const token = jwt.sign({ id: userId, email, username }, JWT_SECRET, { expiresIn: '7d' });
+            saveUsersBackup();
+
+            const token = jwt.sign({ id: userId, email, username }, JWT_SECRET, { expiresIn: '30d' });
 
             res.status(201).json({
                 message: 'Registrierung erfolgreich.',
                 token,
-                user: { id: userId, email, username, avatar_color: avatarColor }
+                user: { id: userId, email, username, avatar_color: avatarColor, avatar_url: null }
             });
         });
+
     } catch (error) {
         console.error('Registration Error:', error);
         res.status(500).json({ error: 'Serverfehler bei der Registrierung.' });
@@ -196,26 +239,26 @@ app.post('/api/auth/login', (req, res) => {
 
     loginInput = loginInput.trim().toLowerCase();
 
-    // Query user by email OR username
-    const sql = `SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?`;
+    // Query user by email OR username (case-insensitive & trimmed)
+    const sql = `SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) OR LOWER(TRIM(username)) = LOWER(TRIM(?))`;
     db.get(sql, [loginInput, loginInput], async (err, user) => {
         if (err) {
             return res.status(500).json({ error: 'Fehler bei der Datenbankabfrage.' });
         }
 
         if (!user) {
-            return res.status(401).json({ error: 'Ungültige Anmeldedaten.' });
+            return res.status(401).json({ error: 'Ungültige Anmeldedaten. Benutzer nicht gefunden.' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
-            return res.status(401).json({ error: 'Ungültige Anmeldedaten.' });
+            return res.status(401).json({ error: 'Ungültige Anmeldedaten. Passwort falsch.' });
         }
 
         const token = jwt.sign(
             { id: user.id, email: user.email, username: user.username },
             JWT_SECRET,
-            { expiresIn: '7d' }
+            { expiresIn: '30d' }
         );
 
         res.json({
@@ -225,11 +268,13 @@ app.post('/api/auth/login', (req, res) => {
                 id: user.id,
                 email: user.email,
                 username: user.username,
-                avatar_color: user.avatar_color
+                avatar_color: user.avatar_color,
+                avatar_url: user.avatar_url
             }
         });
     });
 });
+
 
 // 3. Current User Profile
 app.get('/api/auth/me', authenticateToken, (req, res) => {
@@ -254,6 +299,7 @@ app.put('/api/users/profile-picture', authenticateToken, (req, res) => {
         if (err) {
             return res.status(500).json({ error: 'Fehler beim Speichern des Profilbilds.' });
         }
+        saveUsersBackup();
         res.json({ message: 'Profilbild erfolgreich aktualisiert!', avatar_url: avatarDataUrl });
     });
 });
@@ -294,10 +340,12 @@ app.put('/api/users/change-username', authenticateToken, (req, res) => {
                 return res.status(500).json({ error: 'Fehler beim Aktualisieren des Benutzernamens.' });
             }
 
+            saveUsersBackup();
+
             const token = jwt.sign(
                 { id: req.user.id, email: req.user.email, username: newUsername },
                 JWT_SECRET,
-                { expiresIn: '7d' }
+                { expiresIn: '30d' }
             );
 
             res.json({
@@ -312,6 +360,7 @@ app.put('/api/users/change-username', authenticateToken, (req, res) => {
         });
     });
 });
+
 
 
 // 4. Get User Contacts (with online status, last message & unread count)

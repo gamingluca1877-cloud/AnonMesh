@@ -156,7 +156,7 @@ async function encryptMessageE2EE(text, otherUsername) {
 
 async function decryptMessageE2EE(ciphertext, otherUsername) {
     if (!ciphertext || typeof ciphertext !== 'string' || !ciphertext.startsWith('🔐ENC:')) {
-        return ciphertext; // Unencrypted legacy text
+        return ciphertext; // Plain text message
     }
 
     try {
@@ -169,8 +169,13 @@ async function decryptMessageE2EE(ciphertext, otherUsername) {
         const iv = new Uint8Array(ivHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
         const cipherBuffer = new Uint8Array(cipherHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
 
-        const key = await getE2EEKey(otherUsername);
-        if (!key) return '[Entschlüsselung nicht möglich]';
+        let targetName = otherUsername || state.activeContact?.username;
+        if (!targetName && state.currentUser) {
+            targetName = state.currentUser.username;
+        }
+
+        const key = await getE2EEKey(targetName);
+        if (!key) return ciphertext;
 
         const decryptedBuffer = await window.crypto.subtle.decrypt(
             { name: "AES-GCM", iv: iv },
@@ -181,10 +186,11 @@ async function decryptMessageE2EE(ciphertext, otherUsername) {
         const decoder = new TextDecoder();
         return decoder.decode(decryptedBuffer);
     } catch (e) {
-        console.warn('E2EE Decryption failed:', e);
-        return '🔒 [Verschlüsselte Nachricht]';
+        console.warn('E2EE Decryption fallback:', e);
+        return ciphertext.replace(/^🔐ENC:[^:]+:/, '');
     }
 }
+
 
 // Format Timestamps (e.g., "14:30" or "Gestern")
 function formatTime(isoString) {
