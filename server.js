@@ -287,57 +287,26 @@ const SITE_PASSCODE_HASH = bcrypt.hashSync(SITE_PASSCODE, 10);
 
 app.post('/api/auth/site-gate', async (req, res) => {
     try {
-        let { passcode, nickname } = req.body;
+        let { passcode } = req.body;
         if (!passcode) {
-            return res.status(400).json({ error: 'Bitte Zugangspasswort eingeben.' });
+            return res.status(400).json({ error: 'Bitte Admin-Passwort eingeben.' });
         }
 
         const isMatch = await bcrypt.compare(passcode, SITE_PASSCODE_HASH);
         if (!isMatch) {
-            return res.status(401).json({ error: 'Falsches Zugangspasswort. Zugriff verweigert.' });
+            return res.status(401).json({ error: 'Falsches Admin-Passwort. Zugriff verweigert.' });
         }
 
-        if (!nickname || nickname.trim().length < 2) {
-            nickname = 'Anon_' + Math.floor(1000 + Math.random() * 9000);
-        } else {
-            nickname = nickname.trim().replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20);
-            if (nickname.length < 2) nickname = 'Anon_' + Math.floor(1000 + Math.random() * 9000);
-        }
-
-        const email = `${nickname.toLowerCase()}@anonmesh.internal`;
-        const avatarColor = getRandomColor();
-
-        const findSql = `SELECT * FROM users WHERE LOWER(username) = LOWER(?)`;
-        db.get(findSql, [nickname], (err, existing) => {
-            if (existing) {
-                const token = jwt.sign({ id: existing.id, email: existing.email, username: existing.username }, JWT_SECRET, { expiresIn: '90d' });
-                return res.json({
-                    message: 'Zugang gewährt!',
-                    siteToken: token,
-                    token,
-                    user: { id: existing.id, email: existing.email, username: existing.username, avatar_color: existing.avatar_color }
-                });
-            }
-
-            const insertSql = `INSERT INTO users (email, username, password_hash, avatar_color) VALUES (?, ?, ?, ?)`;
-            db.run(insertSql, [email, nickname, SITE_PASSCODE_HASH, avatarColor], function(err) {
-                const userId = this ? this.lastID : Math.floor(Date.now() / 1000);
-                saveUsersBackup();
-
-                const token = jwt.sign({ id: userId, email, username: nickname }, JWT_SECRET, { expiresIn: '90d' });
-                res.json({
-                    message: 'Zugang gewährt!',
-                    siteToken: token,
-                    token,
-                    user: { id: userId, email, username: nickname, avatar_color: avatarColor }
-                });
-            });
+        return res.json({
+            ok: true,
+            message: 'Admin-Freigabe erteilt. Bitte melde dich an oder registriere ein Konto.'
         });
 
     } catch (e) {
         res.status(500).json({ error: 'Serverfehler bei der Zugangsprüfung.' });
     }
 });
+
 
 
 // ----------------------------------------------------
