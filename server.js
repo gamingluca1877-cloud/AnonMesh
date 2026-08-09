@@ -397,16 +397,17 @@ app.post('/api/contacts/add', authenticateToken, (req, res) => {
         return res.status(400).json({ error: 'Du kannst dich nicht selbst als Kontakt hinzufügen.' });
     }
 
-    // Find target user
-    const findSql = `SELECT id, username, email, avatar_color FROM users WHERE LOWER(username) = LOWER(?)`;
-    db.get(findSql, [username], (err, targetUser) => {
+    // Find target user by username or email (trimmed & case-insensitive)
+    const findSql = `SELECT id, username, email, avatar_color, avatar_url FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) OR LOWER(TRIM(email)) = LOWER(TRIM(?))`;
+    db.get(findSql, [username, username], (err, targetUser) => {
         if (err) {
             return res.status(500).json({ error: 'Fehler bei der Suche.' });
         }
 
         if (!targetUser) {
-            return res.status(404).json({ error: 'Benutzer mit diesem Namen wurde nicht gefunden.' });
+            return res.status(404).json({ error: 'Benutzer mit diesem Namen oder dieser E-Mail wurde nicht gefunden.' });
         }
+
 
         // Add bi-directional contact (both users see each other)
         const addSql = `INSERT OR IGNORE INTO contacts (user_id, contact_id) VALUES (?, ?), (?, ?)`;

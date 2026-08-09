@@ -730,12 +730,19 @@ async function loadMessages(contactId) {
 async function appendMessageBubble(msg, isOutgoing) {
     const messagesList = document.getElementById('messages-list');
 
+    // Deduplication check: ignore if message already exists in DOM
+    if (msg.id && document.querySelector(`.message-row[data-msg-id="${msg.id}"]`)) {
+        return;
+    }
+
     if (messagesList.children.length === 1 && messagesList.children[0].tagName !== 'DIV') {
         messagesList.innerHTML = '';
     }
 
     const row = document.createElement('div');
     row.className = `message-row ${isOutgoing ? 'outgoing' : 'incoming'}`;
+    if (msg.id) row.setAttribute('data-msg-id', msg.id);
+
 
     const timeStr = formatTime(msg.timestamp);
     const readClass = msg.is_read ? 'read' : '';
