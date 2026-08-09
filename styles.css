@@ -857,11 +857,28 @@ input, textarea {
     }
 
     .mobile-back-btn {
-        width: 36px !important;
-        height: 36px !important;
-        min-width: 36px !important;
-        margin-right: 2px !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        margin-right: 6px !important;
+        border: none;
+        background: rgba(255, 255, 255, 0.12) !important;
+        color: #ffffff !important;
+        border-radius: 50% !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(255, 255, 255, 0.3);
+        transition: transform 0.1s ease, background 0.1s ease;
     }
+    .mobile-back-btn:active {
+        background: rgba(255, 255, 255, 0.3) !important;
+        transform: scale(0.92);
+    }
+
 
     /* Compact Messages Scroll & Bubbles */
     .messages-container {

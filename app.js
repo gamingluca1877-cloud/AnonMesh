@@ -700,8 +700,32 @@ async function selectContact(contact) {
 }
 
 function closeMobileChat() {
-    document.querySelector('.app-container').classList.remove('mobile-chat-open');
+    const appContainer = document.querySelector('.app-container');
+    if (appContainer) {
+        appContainer.classList.remove('mobile-chat-open');
+    }
+    state.activeContact = null;
+
+    const chatArea = document.getElementById('chat-area');
+    if (chatArea) {
+        chatArea.classList.add('empty-chat-state');
+    }
+    const chatHeader = document.getElementById('chat-header');
+    if (chatHeader) {
+        chatHeader.classList.add('hidden');
+    }
+    const inputArea = document.getElementById('chat-input-area');
+    if (inputArea) {
+        inputArea.classList.add('hidden');
+    }
+    const noChatSelected = document.getElementById('no-chat-selected');
+    if (noChatSelected) {
+        noChatSelected.classList.remove('hidden');
+    }
 }
+window.closeMobileChat = closeMobileChat;
+window.addEventListener('popstate', closeMobileChat);
+
 
 async function loadMessages(contactId) {
     const messagesList = document.getElementById('messages-list');
