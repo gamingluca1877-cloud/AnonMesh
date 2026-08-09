@@ -175,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', getAudioContext, { once: false });
     initTheme();
     initSourceProtection();
+    initMatrixRain();
     requestNotificationPermission();
 
     if ('serviceWorker' in navigator) {
@@ -186,6 +187,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     checkSiteAccess();
 });
+
+// ----------------------------------------------------
+// CMD / MATRIX RAIN HACKER TERMINAL ANIMATION
+// ----------------------------------------------------
+function initMatrixRain() {
+    const canvas = document.getElementById('matrix-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const chars = '𫞂𣛵𣚚𣛲𣜬𣜭𣜮𣜯𣜰𣜱𣜲𣜳𣜴𣜵0123456789ABCDEFDIR/S_SYSTEM_ENCRYPTION_ANONMESH_0x9F_CLEARANCE_GRANTED';
+    const fontSize = 14;
+    const columns = Math.floor(canvas.width / fontSize);
+    const drops = Array(columns).fill(1);
+
+    function draw() {
+        ctx.fillStyle = 'rgba(3, 7, 18, 0.08)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#22c55e';
+        ctx.font = `${fontSize}px monospace`;
+
+        for (let i = 0; i < drops.length; i++) {
+            const text = chars.charAt(Math.floor(Math.random() * chars.length));
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+            if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                drops[i] = 0;
+            }
+            drops[i]++;
+        }
+    }
+
+    setInterval(draw, 35);
+}
+
 
 
 

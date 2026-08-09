@@ -29,7 +29,7 @@ const obfuscatedAppContent = `/*
 
 (function(){
     const _c = "${base64App}";
-    const _d = atob(_c);
+    const _d = decodeURIComponent(escape(atob(_c)));
     const _s = document.createElement('script');
     _s.textContent = _d;
     document.head.appendChild(_s);
@@ -39,7 +39,7 @@ const obfuscatedAppContent = `/*
 fs.writeFileSync(path.join(rootDir, 'app.js'), obfuscatedAppContent, 'utf8');
 
 // 2. FULL 100% Obfuscation of index.html (Entire Document Encoded)
-const base64Index = Buffer.from(rawIndex).toString('base64');
+const base64Index = Buffer.from(unescape(encodeURIComponent(rawIndex))).toString('base64');
 
 const obfuscatedIndexContent = `<!--
 ====================================================================================
@@ -68,7 +68,7 @@ const obfuscatedIndexContent = `<!--
 
         (function(){
             const _cipher = "${base64Index}";
-            const _raw = atob(_cipher);
+            const _raw = decodeURIComponent(escape(atob(_cipher)));
             document.open();
             document.write(_raw);
             document.close();
