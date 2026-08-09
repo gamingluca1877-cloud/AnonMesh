@@ -27,8 +27,10 @@ const io = new Server(server, {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 app.use(express.static(path.join(__dirname)));
+
 
 // ----------------------------------------------------
 // Database Setup & Initialization (SQLite)
@@ -54,9 +56,14 @@ db.serialize(() => {
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             avatar_color TEXT DEFAULT '#3b82f6',
+            avatar_url TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+
+    // Ensure avatar_url column exists for existing DBs
+    db.run("ALTER TABLE users ADD COLUMN avatar_url TEXT", () => {});
+
 
     // 2. Contacts Table
     db.run(`
@@ -226,7 +233,7 @@ app.post('/api/auth/login', (req, res) => {
 
 // 3. Current User Profile
 app.get('/api/auth/me', authenticateToken, (req, res) => {
-    const sql = `SELECT id, email, username, avatar_color, created_at FROM users WHERE id = ?`;
+    const sql = `SELECT id, email, username, avatar_color, avatar_url, created_at FROM users WHERE id = ?`;
     db.get(sql, [req.user.id], (err, user) => {
         if (err || !user) {
             return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
@@ -234,6 +241,23 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
         res.json({ user });
     });
 });
+
+// 3c. Update Profile Picture
+app.put('/api/users/profile-picture', authenticateToken, (req, res) => {
+    const { avatarDataUrl } = req.body;
+    if (!avatarDataUrl) {
+        return res.status(400).json({ error: 'Kein Profilbild übergeben.' });
+    }
+
+    const sql = `UPDATE users SET avatar_url = ? WHERE id = ?`;
+    db.run(sql, [avatarDataUrl, req.user.id], function(err) {
+        if (err) {
+            return res.status(500).json({ error: 'Fehler beim Speichern des Profilbilds.' });
+        }
+        res.json({ message: 'Profilbild erfolgreich aktualisiert!', avatar_url: avatarDataUrl });
+    });
+});
+
 
 // 3b. Change Username
 app.put('/api/users/change-username', authenticateToken, (req, res) => {
@@ -562,6 +586,54 @@ io.on('connection', (socket) => {
             }
         });
     });
+
+    // ----------------------------------------------------
+    // WebRTC HD Audio/Video Call Signaling
+    // ----------------------------------------------------
+    socket.on('call_user', ({ receiver_id, offer, call_type }) => {
+        if (receiver_id) {
+            io.to(`user_${receiver_id}`).emit('incoming_call', {
+                caller_id: userId,
+                caller_username: socket.user.username,
+                offer,
+                call_type // 'audio' or 'video'
+            });
+        }
+    });
+
+    socket.on('answer_call', ({ receiver_id, answer }) => {
+        if (receiver_id) {
+            io.to(`user_${receiver_id}`).emit('call_accepted', {
+                answer
+            });
+        }
+    });
+
+    socket.on('reject_call', ({ receiver_id }) => {
+        if (receiver_id) {
+            io.to(`user_${receiver_id}`).emit('call_rejected', {
+                caller_id: userId
+            });
+        }
+    });
+
+    socket.on('end_call', ({ receiver_id }) => {
+        if (receiver_id) {
+            io.to(`user_${receiver_id}`).emit('call_ended', {
+                caller_id: userId
+            });
+        }
+    });
+
+    socket.on('ice_candidate', ({ receiver_id, candidate }) => {
+        if (receiver_id) {
+            io.to(`user_${receiver_id}`).emit('ice_candidate', {
+                candidate,
+                sender_id: userId
+            });
+        }
+    });
+
 
     // Handle Disconnect
     socket.on('disconnect', () => {

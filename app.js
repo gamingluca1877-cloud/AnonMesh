@@ -477,7 +477,50 @@ function initSocketConnection() {
             renderContactsList();
         }
     });
+
+    // ----------------------------------------------------
+    // WebRTC Real-time Call Event Listeners
+    // ----------------------------------------------------
+    state.socket.on('incoming_call', ({ caller_id, caller_username, offer, call_type }) => {
+        callState.pendingOffer = offer;
+        callState.pendingCallerId = caller_id;
+        callState.callType = call_type;
+
+        document.getElementById('incoming-caller-name').textContent = caller_username;
+        document.getElementById('incoming-call-type').textContent = call_type === 'video' ? 'Eingehender HD Videoanruf...' : 'Eingehender HD Sprachanruf...';
+        
+        const avatarEl = document.getElementById('incoming-call-avatar');
+        avatarEl.textContent = caller_username.charAt(0).toUpperCase();
+
+        document.getElementById('incoming-call-modal').classList.remove('hidden');
+    });
+
+    state.socket.on('call_accepted', async ({ answer }) => {
+        if (callState.peerConnection) {
+            await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+    });
+
+    state.socket.on('call_rejected', () => {
+        alert('Der Anruf wurde abgelehnt.');
+        endCurrentCall();
+    });
+
+    state.socket.on('call_ended', () => {
+        endCurrentCall();
+    });
+
+    state.socket.on('ice_candidate', async ({ candidate }) => {
+        if (callState.peerConnection && candidate) {
+            try {
+                await callState.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.error('Error adding ICE candidate:', e);
+            }
+        }
+    });
 }
+
 
 // ----------------------------------------------------
 // Contacts & Search Logic
@@ -681,7 +724,6 @@ async function loadMessages(contactId) {
 async function appendMessageBubble(msg, isOutgoing) {
     const messagesList = document.getElementById('messages-list');
 
-    // Remove empty placeholder if existing
     if (messagesList.children.length === 1 && messagesList.children[0].tagName !== 'DIV') {
         messagesList.innerHTML = '';
     }
@@ -695,9 +737,42 @@ async function appendMessageBubble(msg, isOutgoing) {
 
     const decryptedContent = await decryptMessageE2EE(msg.content, state.activeContact?.username);
 
+    let contentHtml = '';
+    if (decryptedContent.startsWith('🎙️AUDIO:')) {
+        const audioUrl = decryptedContent.replace('🎙️AUDIO:', '');
+        contentHtml = `
+            <div style="display:flex;align-items:center;gap:10px;padding:4px 0;">
+                <span style="font-size:1.3rem;">🎙️</span>
+                <audio controls src="${audioUrl}" style="height:34px;max-width:220px;outline:none;"></audio>
+            </div>
+        `;
+    } else if (decryptedContent.startsWith('📷IMG:')) {
+        const imgUrl = decryptedContent.replace('📷IMG:', '');
+        contentHtml = `
+            <div style="margin:4px 0;">
+                <img src="${imgUrl}" style="max-width:100%;max-height:280px;border-radius:8px;cursor:pointer;object-fit:cover;" onclick="window.open('${imgUrl}', '_blank')">
+            </div>
+        `;
+    } else if (decryptedContent.startsWith('📎FILE:')) {
+        const parts = decryptedContent.replace('📎FILE:', '').split(':::');
+        const fileName = parts[0] || 'Datei';
+        const fileUrl = parts[1] || '#';
+        contentHtml = `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(0,0,0,0.18);border-radius:8px;margin:4px 0;">
+                <span style="font-size:1.5rem;">📎</span>
+                <div style="display:flex;flex-direction:column;overflow:hidden;">
+                    <span style="font-weight:600;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">${escapeHtml(fileName)}</span>
+                    <a href="${fileUrl}" download="${escapeHtml(fileName)}" style="color:var(--accent);font-size:0.8rem;text-decoration:none;font-weight:bold;margin-top:2px;">Herunterladen ⬇️</a>
+                </div>
+            </div>
+        `;
+    } else {
+        contentHtml = `<div class="msg-content">${escapeHtml(decryptedContent)}</div>`;
+    }
+
     row.innerHTML = `
         <div class="msg-bubble">
-            <div class="msg-content">${escapeHtml(decryptedContent)}</div>
+            ${contentHtml}
             <div class="msg-footer">
                 <span class="msg-time">${timeStr}</span>
                 ${checkmarksStr}
@@ -708,6 +783,7 @@ async function appendMessageBubble(msg, isOutgoing) {
     messagesList.appendChild(row);
     scrollToBottom();
 }
+
 
 
 function scrollToBottom() {
@@ -891,4 +967,356 @@ async function handleUpdateUsername(e) {
         feedback.classList.remove('hidden');
     }
 }
+
+// ----------------------------------------------------
+// PROFILE PICTURE UPLOADER
+// ----------------------------------------------------
+async function handleProfilePictureSelected(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+        alert('Bitte ein gültiges Bild auswählen.');
+        return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+        alert('Das Bild darf maximal 10 MB groß sein.');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        const avatarDataUrl = event.target.result;
+        try {
+            const response = await fetch('/api/users/profile-picture', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.token}`
+                },
+                body: JSON.stringify({ avatarDataUrl })
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                alert(data.error || 'Fehler beim Hochladen.');
+                return;
+            }
+
+            state.currentUser.avatar_url = avatarDataUrl;
+            localStorage.setItem('anonmesh_user', JSON.stringify(state.currentUser));
+
+            // Update UI Avatar previews
+            const myAvatar = document.getElementById('my-avatar');
+            myAvatar.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+            
+            const settingsPreview = document.getElementById('settings-avatar-preview');
+            settingsPreview.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+
+            alert('Profilbild erfolgreich aktualisiert!');
+        } catch (err) {
+            alert('Netzwerkfehler beim Hochladen des Profilbilds.');
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+// ----------------------------------------------------
+// FILE & IMAGE ATTACHMENTS (E2EE)
+// ----------------------------------------------------
+async function handleFileSelected(e) {
+    const file = e.target.files[0];
+    if (!file || !state.activeContact) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+        alert('Dateien dürfen maximal 15 MB groß sein.');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        const fileDataUrl = event.target.result;
+        let formattedPayload = '';
+
+        if (file.type.startsWith('image/')) {
+            formattedPayload = `📷IMG:${fileDataUrl}`;
+        } else {
+            formattedPayload = `📎FILE:${file.name}:::${fileDataUrl}`;
+        }
+
+        const encrypted = await encryptMessageE2EE(formattedPayload, state.activeContact.username);
+        state.socket.emit('send_message', {
+            receiver_id: state.activeContact.id,
+            content: encrypted
+        });
+        e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+}
+
+// ----------------------------------------------------
+// VOICE MESSAGES RECORDER (E2EE)
+// ----------------------------------------------------
+let voiceState = {
+    mediaRecorder: null,
+    audioChunks: [],
+    timerInterval: null,
+    seconds: 0
+};
+
+async function toggleVoiceRecording() {
+    if (voiceState.mediaRecorder && voiceState.mediaRecorder.state === 'recording') {
+        stopAndSendVoiceRecording();
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        voiceState.mediaRecorder = new MediaRecorder(stream);
+        voiceState.audioChunks = [];
+        voiceState.seconds = 0;
+
+        voiceState.mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) voiceState.audioChunks.push(e.data);
+        };
+
+        voiceState.mediaRecorder.start();
+        document.getElementById('voice-recording-bar').classList.remove('hidden');
+
+        voiceState.timerInterval = setInterval(() => {
+            voiceState.seconds++;
+            const mins = String(Math.floor(voiceState.seconds / 60)).padStart(2, '0');
+            const secs = String(voiceState.seconds % 60).padStart(2, '0');
+            document.getElementById('recording-time').textContent = `${mins}:${secs}`;
+        }, 1000);
+
+    } catch (err) {
+        alert('Mikrofon-Zugriff verweigert oder nicht verfügbar.');
+    }
+}
+
+function cancelVoiceRecording() {
+    if (voiceState.mediaRecorder) {
+        voiceState.mediaRecorder.onstop = null;
+        voiceState.mediaRecorder.stop();
+        if (voiceState.mediaRecorder.stream) {
+            voiceState.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+    }
+    resetVoiceRecorderUI();
+}
+
+function stopAndSendVoiceRecording() {
+    if (!voiceState.mediaRecorder || voiceState.mediaRecorder.state !== 'recording') return;
+
+    voiceState.mediaRecorder.onstop = async () => {
+        if (voiceState.mediaRecorder.stream) {
+            voiceState.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+        const audioBlob = new Blob(voiceState.audioChunks, { type: 'audio/webm' });
+        
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64Audio = e.target.result;
+            const payload = `🎙️AUDIO:${base64Audio}`;
+            if (state.activeContact) {
+                const encrypted = await encryptMessageE2EE(payload, state.activeContact.username);
+                state.socket.emit('send_message', {
+                    receiver_id: state.activeContact.id,
+                    content: encrypted
+                });
+            }
+        };
+        reader.readAsDataURL(audioBlob);
+        resetVoiceRecorderUI();
+    };
+
+    voiceState.mediaRecorder.stop();
+}
+
+function resetVoiceRecorderUI() {
+    clearInterval(voiceState.timerInterval);
+    voiceState.seconds = 0;
+    voiceState.mediaRecorder = null;
+    voiceState.audioChunks = [];
+    document.getElementById('recording-time').textContent = '00:00';
+    document.getElementById('voice-recording-bar').classList.add('hidden');
+}
+
+// ----------------------------------------------------
+// WEBRTC HD VOICE & VIDEO CALL ENGINE
+// ----------------------------------------------------
+const callState = {
+    peerConnection: null,
+    localStream: null,
+    targetUserId: null,
+    callType: 'video', // 'audio' or 'video'
+    pendingOffer: null,
+    pendingCallerId: null,
+    isMicMuted: false,
+    isCamMuted: false
+};
+
+const rtcConfig = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+};
+
+async function startCall(callType) {
+    if (!state.activeContact) return;
+
+    callState.callType = callType;
+    callState.targetUserId = state.activeContact.id;
+
+    try {
+        const constraints = {
+            audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 },
+            video: callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false
+        };
+
+        callState.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        document.getElementById('local-video').srcObject = callState.localStream;
+        document.getElementById('active-call-modal').classList.remove('hidden');
+
+        callState.peerConnection = new RTCPeerConnection(rtcConfig);
+
+        callState.localStream.getTracks().forEach(track => {
+            callState.peerConnection.addTrack(track, callState.localStream);
+        });
+
+        callState.peerConnection.ontrack = (event) => {
+            document.getElementById('remote-video').srcObject = event.streams[0];
+        };
+
+        callState.peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                state.socket.emit('ice_candidate', {
+                    receiver_id: callState.targetUserId,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        const offer = await callState.peerConnection.createOffer();
+        await callState.peerConnection.setLocalDescription(offer);
+
+        state.socket.emit('call_user', {
+            receiver_id: callState.targetUserId,
+            offer,
+            call_type: callType
+        });
+
+    } catch (err) {
+        alert('Kamera/Mikrofon-Zugriff verweigert.');
+        endCurrentCall();
+    }
+}
+
+async function acceptIncomingCall() {
+    document.getElementById('incoming-call-modal').classList.add('hidden');
+    if (!callState.pendingOffer || !callState.pendingCallerId) return;
+
+    callState.targetUserId = callState.pendingCallerId;
+
+    try {
+        const constraints = {
+            audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 48000 },
+            video: callState.callType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false
+        };
+
+        callState.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        document.getElementById('local-video').srcObject = callState.localStream;
+        document.getElementById('active-call-modal').classList.remove('hidden');
+
+        callState.peerConnection = new RTCPeerConnection(rtcConfig);
+
+        callState.localStream.getTracks().forEach(track => {
+            callState.peerConnection.addTrack(track, callState.localStream);
+        });
+
+        callState.peerConnection.ontrack = (event) => {
+            document.getElementById('remote-video').srcObject = event.streams[0];
+        };
+
+        callState.peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                state.socket.emit('ice_candidate', {
+                    receiver_id: callState.targetUserId,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(callState.pendingOffer));
+        const answer = await callState.peerConnection.createAnswer();
+        await callState.peerConnection.setLocalDescription(answer);
+
+        state.socket.emit('answer_call', {
+            receiver_id: callState.targetUserId,
+            answer
+        });
+
+    } catch (err) {
+        alert('Fehler beim Annehmen des Anrufs.');
+        rejectIncomingCall();
+    }
+}
+
+function rejectIncomingCall() {
+    document.getElementById('incoming-call-modal').classList.add('hidden');
+    if (callState.pendingCallerId) {
+        state.socket.emit('reject_call', { receiver_id: callState.pendingCallerId });
+    }
+    callState.pendingOffer = null;
+    callState.pendingCallerId = null;
+}
+
+function endCurrentCall() {
+    if (callState.targetUserId && state.socket) {
+        state.socket.emit('end_call', { receiver_id: callState.targetUserId });
+    }
+
+    if (callState.peerConnection) {
+        callState.peerConnection.close();
+        callState.peerConnection = null;
+    }
+
+    if (callState.localStream) {
+        callState.localStream.getTracks().forEach(t => t.stop());
+        callState.localStream = null;
+    }
+
+    document.getElementById('local-video').srcObject = null;
+    document.getElementById('remote-video').srcObject = null;
+    document.getElementById('active-call-modal').classList.add('hidden');
+    document.getElementById('incoming-call-modal').classList.add('hidden');
+
+    callState.targetUserId = null;
+    callState.pendingOffer = null;
+}
+
+function toggleMuteMic() {
+    if (!callState.localStream) return;
+    const audioTrack = callState.localStream.getAudioTracks()[0];
+    if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        callState.isMicMuted = !audioTrack.enabled;
+        document.getElementById('toggle-mic-btn').textContent = callState.isMicMuted ? '🎙️❌' : '🎤';
+    }
+}
+
+function toggleMuteCam() {
+    if (!callState.localStream) return;
+    const videoTrack = callState.localStream.getVideoTracks()[0];
+    if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        callState.isCamMuted = !videoTrack.enabled;
+        document.getElementById('toggle-cam-btn').textContent = callState.isCamMuted ? '📹❌' : '📹';
+    }
+}
+
 
