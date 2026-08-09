@@ -530,13 +530,15 @@ app.put('/api/users/change-username', authenticateToken, (req, res) => {
 app.get('/api/contacts', authenticateToken, (req, res) => {
     const userId = req.user.id;
 
-    // Get all users in the system (excluding current user) as contacts so chats & contacts are NEVER lost
+    // Get all contacts added by current user
     const sql = `
-        SELECT DISTINCT u.id, u.username, u.email, u.avatar_color
-        FROM users u
-        WHERE u.id != ?
+        SELECT u.id, u.username, u.email, u.avatar_color
+        FROM contacts c
+        JOIN users u ON c.contact_id = u.id
+        WHERE c.user_id = ?
         ORDER BY u.username ASC
     `;
+
 
 
     db.all(sql, [userId], (err, contacts) => {
