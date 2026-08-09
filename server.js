@@ -530,14 +530,14 @@ app.put('/api/users/change-username', authenticateToken, (req, res) => {
 app.get('/api/contacts', authenticateToken, (req, res) => {
     const userId = req.user.id;
 
-    // Get all contacts added by current user
+    // Get all registered team members as contacts so all chats & colleagues are listed automatically
     const sql = `
-        SELECT u.id, u.username, u.email, u.avatar_color
-        FROM contacts c
-        JOIN users u ON c.contact_id = u.id
-        WHERE c.user_id = ?
+        SELECT DISTINCT u.id, u.username, u.email, u.avatar_color
+        FROM users u
+        WHERE u.id != ?
         ORDER BY u.username ASC
     `;
+
 
 
 
