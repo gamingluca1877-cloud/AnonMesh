@@ -103,11 +103,12 @@ db.serialize(() => {
 
 
 // ----------------------------------------------------
-// Encrypted Users Backup Engine (AES-256-GCM Encryption)
+// Encrypted Complete Database Backup Engine (AES-256-GCM)
+// Backs up Users, Contacts & Messages so NO CHATS ARE EVER LOST!
 // ----------------------------------------------------
 const fs = require('fs');
 const crypto = require('crypto');
-const BACKUP_ENC_FILE = path.join(__dirname, 'users_backup.enc');
+const BACKUP_ENC_FILE = path.join(__dirname, 'chat_backup.enc');
 
 // Master encryption key derived from JWT_SECRET
 const MASTER_KEY = crypto.createHash('sha256').update(JWT_SECRET + '_anonmesh_master_db_key_2026').digest();
@@ -138,23 +139,34 @@ function decryptData(encryptedStr) {
 }
 
 function saveUsersBackup() {
-    const sql = `SELECT id, email, username, password_hash, avatar_color, avatar_url, created_at FROM users`;
-    db.all(sql, [], (err, rows) => {
-        if (!err && rows) {
-            try {
-                const jsonStr = JSON.stringify(rows, null, 2);
-                const encryptedPayload = encryptData(jsonStr);
-                fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
-                
-                // Delete old unencrypted json backup file if existing
-                const oldJson = path.join(__dirname, 'users_backup.json');
-                if (fs.existsSync(oldJson)) {
-                    fs.unlinkSync(oldJson);
+    db.all(`SELECT id, email, username, password_hash, avatar_color, avatar_url, created_at FROM users`, [], (err, users) => {
+        if (err || !users) return;
+        db.all(`SELECT id, user_id, contact_id, created_at FROM contacts`, [], (err, contacts) => {
+            if (err || !contacts) return;
+            db.all(`SELECT id, sender_id, receiver_id, content, timestamp, is_read FROM messages`, [], (err, messages) => {
+                if (err || !messages) return;
+
+                const backupObj = {
+                    users: users || [],
+                    contacts: contacts || [],
+                    messages: messages || []
+                };
+
+                try {
+                    const jsonStr = JSON.stringify(backupObj, null, 2);
+                    const encryptedPayload = encryptData(jsonStr);
+                    fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
+
+                    // Clean up old backup files
+                    const oldUserEnc = path.join(__dirname, 'users_backup.enc');
+                    if (fs.existsSync(oldUserEnc)) fs.unlinkSync(oldUserEnc);
+                    const oldUserJson = path.join(__dirname, 'users_backup.json');
+                    if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
+                } catch (e) {
+                    console.error('Error writing encrypted db backup:', e.message);
                 }
-            } catch (e) {
-                console.error('Error writing encrypted users backup:', e.message);
-            }
-        }
+            });
+        });
     });
 }
 
@@ -165,18 +177,42 @@ function restoreUsersFromBackup() {
         const jsonStr = decryptData(encryptedData);
         if (!jsonStr) return;
 
-        const users = JSON.parse(jsonStr);
-        if (Array.isArray(users) && users.length > 0) {
-            const insertSql = `INSERT OR IGNORE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-            users.forEach(u => {
-                db.run(insertSql, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || null, u.created_at || new Date().toISOString()]);
-            });
-            console.log(`[+] Restored ${users.length} accounts from AES-256-GCM encrypted backup!`);
-        }
+        const backupObj = JSON.parse(jsonStr);
+        if (!backupObj) return;
+
+        db.serialize(() => {
+            // 1. Restore Users
+            if (Array.isArray(backupObj.users)) {
+                const insertUser = `INSERT OR IGNORE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                backupObj.users.forEach(u => {
+                    db.run(insertUser, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || null, u.created_at || new Date().toISOString()]);
+                });
+            }
+
+            // 2. Restore Contacts
+            if (Array.isArray(backupObj.contacts)) {
+                const insertContact = `INSERT OR IGNORE INTO contacts (id, user_id, contact_id, created_at) VALUES (?, ?, ?, ?)`;
+                backupObj.contacts.forEach(c => {
+                    db.run(insertContact, [c.id, c.user_id, c.contact_id, c.created_at || new Date().toISOString()]);
+                });
+            }
+
+            // 3. Restore Messages (All Chats!)
+            if (Array.isArray(backupObj.messages)) {
+                const insertMsg = `INSERT OR IGNORE INTO messages (id, sender_id, receiver_id, content, timestamp, is_read) VALUES (?, ?, ?, ?, ?, ?)`;
+                backupObj.messages.forEach(m => {
+                    db.run(insertMsg, [m.id, m.sender_id, m.receiver_id, m.content, m.timestamp, m.is_read || 0]);
+                });
+            }
+
+            console.log(`[+] Restored ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, and ${backupObj.messages?.length || 0} chat messages from AES-256-GCM backup!`);
+        });
+
     } catch (e) {
-        console.error('Error restoring encrypted users backup:', e.message);
+        console.error('Error restoring encrypted db backup:', e.message);
     }
 }
+
 
 
 
@@ -643,6 +679,8 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            saveUsersBackup();
+
             const messageObj = {
                 id: this.lastID,
                 sender_id: userId,
@@ -651,6 +689,7 @@ io.on('connection', (socket) => {
                 timestamp,
                 is_read: 0
             };
+
 
             // Emit to sender
             socket.emit('message_sent', messageObj);
