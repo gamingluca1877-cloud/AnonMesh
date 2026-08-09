@@ -101,40 +101,81 @@ db.serialize(() => {
 
 
 // ----------------------------------------------------
-// Persistent Users Backup Engine (JSON File Backup)
+// Encrypted Users Backup Engine (AES-256-GCM Encryption)
 // ----------------------------------------------------
 const fs = require('fs');
-const BACKUP_FILE = path.join(__dirname, 'users_backup.json');
+const crypto = require('crypto');
+const BACKUP_ENC_FILE = path.join(__dirname, 'users_backup.enc');
+
+// Master encryption key derived from JWT_SECRET
+const MASTER_KEY = crypto.createHash('sha256').update(JWT_SECRET + '_anonmesh_master_db_key_2026').digest();
+
+function encryptData(text) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', MASTER_KEY, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag().toString('hex');
+    return `enc:${iv.toString('hex')}:${authTag}:${encrypted}`;
+}
+
+function decryptData(encryptedStr) {
+    if (!encryptedStr || !encryptedStr.startsWith('enc:')) return null;
+    const parts = encryptedStr.split(':');
+    if (parts.length !== 4) return null;
+    
+    const iv = Buffer.from(parts[1], 'hex');
+    const authTag = Buffer.from(parts[2], 'hex');
+    const ciphertext = parts[3];
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', MASTER_KEY, iv);
+    decipher.setAuthTag(authTag);
+    let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
 
 function saveUsersBackup() {
     const sql = `SELECT id, email, username, password_hash, avatar_color, avatar_url, created_at FROM users`;
     db.all(sql, [], (err, rows) => {
         if (!err && rows) {
             try {
-                fs.writeFileSync(BACKUP_FILE, JSON.stringify(rows, null, 2), 'utf8');
+                const jsonStr = JSON.stringify(rows, null, 2);
+                const encryptedPayload = encryptData(jsonStr);
+                fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
+                
+                // Delete old unencrypted json backup file if existing
+                const oldJson = path.join(__dirname, 'users_backup.json');
+                if (fs.existsSync(oldJson)) {
+                    fs.unlinkSync(oldJson);
+                }
             } catch (e) {
-                console.error('Error writing users backup:', e.message);
+                console.error('Error writing encrypted users backup:', e.message);
             }
         }
     });
 }
 
 function restoreUsersFromBackup() {
-    if (!fs.existsSync(BACKUP_FILE)) return;
+    if (!fs.existsSync(BACKUP_ENC_FILE)) return;
     try {
-        const data = fs.readFileSync(BACKUP_FILE, 'utf8');
-        const users = JSON.parse(data);
+        const encryptedData = fs.readFileSync(BACKUP_ENC_FILE, 'utf8');
+        const jsonStr = decryptData(encryptedData);
+        if (!jsonStr) return;
+
+        const users = JSON.parse(jsonStr);
         if (Array.isArray(users) && users.length > 0) {
             const insertSql = `INSERT OR IGNORE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
             users.forEach(u => {
                 db.run(insertSql, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || null, u.created_at || new Date().toISOString()]);
             });
-            console.log(`[+] Restored ${users.length} registered accounts from backup.`);
+            console.log(`[+] Restored ${users.length} accounts from AES-256-GCM encrypted backup!`);
         }
     } catch (e) {
-        console.error('Error restoring users backup:', e.message);
+        console.error('Error restoring encrypted users backup:', e.message);
     }
 }
+
 
 
 // Helper colors for user avatars
