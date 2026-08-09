@@ -15,9 +15,129 @@ const state = {
 };
 
 // ----------------------------------------------------
+// WEB AUDIO API SOUND SYSTEM (Message & Discord Ringtone)
+// ----------------------------------------------------
+let audioCtx = null;
+let ringtoneInterval = null;
+let ringtoneOscillators = [];
+
+function getAudioContext() {
+    if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+            audioCtx = new AudioContextClass();
+        }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    return audioCtx;
+}
+
+// 1. DISCORD / WHATSAPP STYLE MESSAGE CHIME
+function playMessageSound() {
+    try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        
+        // Tone 1: High D5 (587.33 Hz)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(587.33, now);
+        gain1.gain.setValueAtTime(0.15, now);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.15);
+
+        // Tone 2: A5 (880 Hz) - Discord Chime Feel
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(880, now + 0.08);
+        gain2.gain.setValueAtTime(0.18, now + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.08);
+        osc2.stop(now + 0.35);
+
+    } catch (e) {
+        console.warn('Audio play error:', e);
+    }
+}
+
+// 2. DISCORD-STYLE INCOMING CALL RINGTONE
+function startRingtone() {
+    stopRingtone();
+    try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+
+        function playRingPulse() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            
+            // Discord Ringtone Dual Tone (440Hz + 480Hz)
+            const oscA = audioCtx.createOscillator();
+            const oscB = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            oscA.type = 'sine';
+            oscB.type = 'sine';
+            oscA.frequency.setValueAtTime(440, now);
+            oscB.frequency.setValueAtTime(480, now);
+
+            // Double Pulse Rhythm (Ring-Ring ... Ring-Ring)
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.setValueAtTime(0.2, now + 0.4);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.45);
+
+            gain.gain.setValueAtTime(0.2, now + 0.6);
+            gain.gain.setValueAtTime(0.2, now + 1.0);
+            gain.gain.linearRampToValueAtTime(0.001, now + 1.05);
+
+            oscA.connect(gain);
+            oscB.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            oscA.start(now);
+            oscB.start(now);
+            oscA.stop(now + 1.1);
+            oscB.stop(now + 1.1);
+
+            ringtoneOscillators.push(oscA, oscB);
+        }
+
+        playRingPulse();
+        ringtoneInterval = setInterval(playRingPulse, 2400);
+
+    } catch (e) {
+        console.warn('Ringtone start error:', e);
+    }
+}
+
+function stopRingtone() {
+    if (ringtoneInterval) {
+        clearInterval(ringtoneInterval);
+        ringtoneInterval = null;
+    }
+    ringtoneOscillators.forEach(osc => {
+        try { osc.stop(); } catch(e) {}
+    });
+    ringtoneOscillators = [];
+}
+
+// ----------------------------------------------------
 // Initialization & Theme Management
 // ----------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('click', getAudioContext, { once: false });
+    document.addEventListener('keydown', getAudioContext, { once: false });
     initTheme();
     initSourceProtection();
     if (window.location.protocol === 'file:') {
@@ -25,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     checkAuthSession();
 });
+
 
 // ----------------------------------------------------
 // SOURCE CODE & CONTENT PROTECTION ENGINE
@@ -425,6 +546,7 @@ function initSocketConnection() {
 
     // Incoming Private Message
     state.socket.on('private_message', (msg) => {
+        playMessageSound();
         if (state.activeContact && msg.sender_id === state.activeContact.id) {
             appendMessageBubble(msg, false);
             scrollToBottom();
@@ -439,6 +561,7 @@ function initSocketConnection() {
         }
         updateContactLastMessage(msg.sender_id, msg.content, msg.timestamp);
     });
+
 
     // Contact Online/Offline Status Change
     state.socket.on('user_status', ({ user_id, is_online }) => {
@@ -490,7 +613,7 @@ function initSocketConnection() {
     });
 
     // ----------------------------------------------------
-    // WebRTC Real-time Call Event Listeners
+    // WebRTC Real-time Call Event Listeners & Ringtone
     // ----------------------------------------------------
     state.socket.on('incoming_call', ({ caller_id, caller_username, offer, call_type }) => {
         callState.pendingOffer = offer;
@@ -504,9 +627,13 @@ function initSocketConnection() {
         avatarEl.textContent = caller_username.charAt(0).toUpperCase();
 
         document.getElementById('incoming-call-modal').classList.remove('hidden');
+
+        // Start Discord-style Ringtone Sound
+        startRingtone();
     });
 
     state.socket.on('call_accepted', async ({ answer }) => {
+        stopRingtone();
         if (callState.peerConnection) {
             await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
             await processQueuedIceCandidates();
@@ -514,13 +641,16 @@ function initSocketConnection() {
     });
 
     state.socket.on('call_rejected', () => {
+        stopRingtone();
         alert('Der Anruf wurde abgelehnt.');
         endCurrentCall();
     });
 
     state.socket.on('call_ended', () => {
+        stopRingtone();
         endCurrentCall();
     });
+
 
     state.socket.on('ice_candidate', async ({ candidate }) => {
         if (candidate) {
@@ -1406,8 +1536,10 @@ async function startCall(callType) {
 }
 
 async function acceptIncomingCall() {
+    stopRingtone();
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (!callState.pendingOffer || !callState.pendingCallerId) return;
+
 
     callState.targetUserId = callState.pendingCallerId;
 
@@ -1470,6 +1602,7 @@ async function acceptIncomingCall() {
 
 
 function rejectIncomingCall() {
+    stopRingtone();
     document.getElementById('incoming-call-modal').classList.add('hidden');
     if (callState.pendingCallerId) {
         state.socket.emit('reject_call', { receiver_id: callState.pendingCallerId });
@@ -1480,9 +1613,11 @@ function rejectIncomingCall() {
 }
 
 function endCurrentCall() {
+    stopRingtone();
     if (callState.targetUserId && state.socket) {
         state.socket.emit('end_call', { receiver_id: callState.targetUserId });
     }
+
 
     if (callState.peerConnection) {
         callState.peerConnection.close();
