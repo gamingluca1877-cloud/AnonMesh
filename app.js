@@ -1227,59 +1227,7 @@ async function handleUpdateUsername(e) {
     }
 }
 
-// ----------------------------------------------------
-// PROFILE PICTURE UPLOADER
-// ----------------------------------------------------
-async function handleProfilePictureSelected(e) {
-    const file = e.target.files[0];
-    if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-        alert('Bitte ein gültiges Bild auswählen.');
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-        let avatarDataUrl = event.target.result;
-        // Compress avatar photo to lightweight 500x500px image (~30-50KB)
-        avatarDataUrl = await compressImage(avatarDataUrl, 500, 0.85);
-
-        try {
-            const response = await fetch('/api/users/profile-picture', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${state.token}`
-                },
-                body: JSON.stringify({ avatarDataUrl })
-            });
-
-            const data = await response.json();
-            if (!response.ok) {
-                alert(data.error || 'Fehler beim Hochladen.');
-                return;
-            }
-
-            state.currentUser.avatar_url = avatarDataUrl;
-            localStorage.setItem('anonmesh_user', JSON.stringify(state.currentUser));
-
-            // Update UI Avatar previews
-            const myAvatar = document.getElementById('my-avatar');
-            myAvatar.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
-            
-            const settingsPreview = document.getElementById('settings-avatar-preview');
-            if (settingsPreview) {
-                settingsPreview.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
-            }
-
-            alert('Profilbild erfolgreich aktualisiert!');
-        } catch (err) {
-            alert('Netzwerkfehler beim Hochladen des Profilbilds.');
-        }
-    };
-    reader.readAsDataURL(file);
-}
 
 
 // ----------------------------------------------------

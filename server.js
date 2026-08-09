@@ -371,22 +371,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
     });
 });
 
-// 3c. Update Profile Picture
-app.put('/api/users/profile-picture', authenticateToken, (req, res) => {
-    const { avatarDataUrl } = req.body;
-    if (!avatarDataUrl) {
-        return res.status(400).json({ error: 'Kein Profilbild übergeben.' });
-    }
 
-    const sql = `UPDATE users SET avatar_url = ? WHERE id = ?`;
-    db.run(sql, [avatarDataUrl, req.user.id], function(err) {
-        if (err) {
-            return res.status(500).json({ error: 'Fehler beim Speichern des Profilbilds.' });
-        }
-        saveUsersBackup();
-        res.json({ message: 'Profilbild erfolgreich aktualisiert!', avatar_url: avatarDataUrl });
-    });
-});
 
 
 // 3b. Change Username
