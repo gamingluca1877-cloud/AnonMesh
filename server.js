@@ -808,19 +808,33 @@ io.on('connection', (socket) => {
         });
     });
 
+    // Helper to guarantee delivery to all connected sockets of receiver
+    function emitToUser(targetUserId, eventName, payload) {
+        if (!targetUserId) return;
+        const targetIdNum = Number(targetUserId);
+        io.to(`user_${targetUserId}`).emit(eventName, payload);
+        io.to(`user_${targetIdNum}`).emit(eventName, payload);
+        const sockets = onlineUsers.get(targetIdNum);
+        if (sockets) {
+            sockets.forEach(sockId => {
+                io.to(sockId).emit(eventName, payload);
+            });
+        }
+    }
+
     // ----------------------------------------------------
     // WebRTC HD Audio/Video Call Signaling
     // ----------------------------------------------------
     socket.on('call_audio_chunk', ({ receiver_id, audioData }) => {
         if (receiver_id && audioData) {
-            io.to(`user_${receiver_id}`).emit('incoming_call_audio', { sender_id: userId, audioData });
+            emitToUser(receiver_id, 'incoming_call_audio', { sender_id: userId, audioData });
         }
     });
 
     socket.on('call_user', ({ receiver_id, offer, call_type }) => {
-
         if (receiver_id) {
-            io.to(`user_${receiver_id}`).emit('incoming_call', {
+            console.log(`[📞 CALL SIGNAL] ${socket.user.username} (ID: ${userId}) calling user_${receiver_id}`);
+            emitToUser(receiver_id, 'incoming_call', {
                 caller_id: userId,
                 caller_username: socket.user.username,
                 offer,
@@ -831,7 +845,8 @@ io.on('connection', (socket) => {
 
     socket.on('answer_call', ({ receiver_id, answer }) => {
         if (receiver_id) {
-            io.to(`user_${receiver_id}`).emit('call_accepted', {
+            console.log(`[📞 ANSWER SIGNAL] User ${userId} accepted call from user_${receiver_id}`);
+            emitToUser(receiver_id, 'call_accepted', {
                 answer
             });
         }
@@ -839,7 +854,7 @@ io.on('connection', (socket) => {
 
     socket.on('reject_call', ({ receiver_id }) => {
         if (receiver_id) {
-            io.to(`user_${receiver_id}`).emit('call_rejected', {
+            emitToUser(receiver_id, 'call_rejected', {
                 caller_id: userId
             });
         }
@@ -847,20 +862,21 @@ io.on('connection', (socket) => {
 
     socket.on('end_call', ({ receiver_id }) => {
         if (receiver_id) {
-            io.to(`user_${receiver_id}`).emit('call_ended', {
+            emitToUser(receiver_id, 'call_ended', {
                 caller_id: userId
             });
         }
     });
 
     socket.on('ice_candidate', ({ receiver_id, candidate }) => {
-        if (receiver_id) {
-            io.to(`user_${receiver_id}`).emit('ice_candidate', {
+        if (receiver_id && candidate) {
+            emitToUser(receiver_id, 'ice_candidate', {
                 candidate,
                 sender_id: userId
             });
         }
     });
+
 
 
     // Handle Disconnect
