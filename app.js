@@ -2335,8 +2335,12 @@ async function toggleMuteCam() {
         }
     }
 }
-
-
-
+// Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
+window.startCall = startCall;
+window.acceptIncomingCall = acceptIncomingCall;
+window.rejectIncomingCall = rejectIncomingCall;
+window.endCurrentCall = endCurrentCall;
+window.toggleMuteMic = toggleMuteMic;
+window.toggleMuteCam = toggleMuteCam;
 
 
