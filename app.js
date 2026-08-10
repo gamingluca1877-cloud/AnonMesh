@@ -1769,9 +1769,7 @@ async function getMediaStream(callType = 'audio') {
                 audio: {
                     echoCancellation: true,
                     noiseSuppression: true,
-                    autoGainControl: true,
-                    channelCount: 2,
-                    sampleRate: 48000
+                    autoGainControl: true
                 },
                 video: false
             });
@@ -1785,6 +1783,7 @@ async function getMediaStream(callType = 'audio') {
         }
     }
 }
+
 
 
 
@@ -1972,7 +1971,8 @@ function playPcmAudioChunk(pcmArray) {
         if (!ctx) return;
         if (ctx.state === 'suspended') ctx.resume().catch(e => {});
 
-        const buffer = ctx.createBuffer(1, pcmArray.length, ctx.sampleRate || 48000);
+        const buffer = ctx.createBuffer(1, pcmArray.length, ctx.sampleRate);
+
         const channelData = buffer.getChannelData(0);
         for (let i = 0; i < pcmArray.length; i++) {
             channelData[i] = pcmArray[i] / 32768.0;
