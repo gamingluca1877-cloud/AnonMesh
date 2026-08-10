@@ -150,11 +150,11 @@ async function seedDefaultAccounts() {
         const hash2 = await bcrypt.hash('1234', 10);
 
         db.serialize(() => {
-            db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color) VALUES (1, 'Anonym1', 'anonym1@anonmesh.de', ?, '#06b6d4')`, [hash1]);
-            db.run(`UPDATE users SET username = 'Anonym1', password_hash = ? WHERE email = 'anonym1@anonmesh.de' OR id = 1`, [hash1]);
+            db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color, avatar_url) VALUES (1, 'Anonym1', 'anonym1@anonmesh.de', ?, '#06b6d4', 'logo.jpg')`, [hash1]);
+            db.run(`UPDATE users SET username = 'Anonym1', password_hash = ?, avatar_url = 'logo.jpg' WHERE email = 'anonym1@anonmesh.de' OR id = 1`, [hash1]);
 
-            db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color) VALUES (2, 'Anonym2', 'anonym2@anonmesh.de', ?, '#10b981')`, [hash2]);
-            db.run(`UPDATE users SET username = 'Anonym2', password_hash = ? WHERE email = 'anonym2@anonmesh.de' OR id = 2`, [hash2]);
+            db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color, avatar_url) VALUES (2, 'Anonym2', 'anonym2@anonmesh.de', ?, '#10b981', 'logo.jpg')`, [hash2]);
+            db.run(`UPDATE users SET username = 'Anonym2', password_hash = ?, avatar_url = 'logo.jpg' WHERE email = 'anonym2@anonmesh.de' OR id = 2`, [hash2]);
 
             db.run(`INSERT OR IGNORE INTO contacts (user_id, contact_id) VALUES (1, 2), (2, 1)`, (err) => {
                 if (err) console.warn('Contacts seed info:', err.message);
@@ -164,6 +164,7 @@ async function seedDefaultAccounts() {
         console.warn('seedDefaultAccounts error:', e);
     }
 }
+
 
 
 
@@ -251,9 +252,11 @@ function restoreUsersFromBackup() {
             if (Array.isArray(backupObj.users) && backupObj.users.length > 0) {
                 const insertUser = `INSERT OR IGNORE INTO users (id, email, username, password_hash, avatar_color, avatar_url, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
                 backupObj.users.forEach(u => {
-                    db.run(insertUser, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || null, u.created_at || new Date().toISOString()]);
+                    db.run(insertUser, [u.id, u.email, u.username, u.password_hash, u.avatar_color, u.avatar_url || 'logo.jpg', u.created_at || new Date().toISOString()]);
+                    db.run(`UPDATE users SET avatar_url = 'logo.jpg' WHERE avatar_url IS NULL OR avatar_url = ''`);
                 });
             }
+
 
             // 2. Restore Contacts
             if (Array.isArray(backupObj.contacts) && backupObj.contacts.length > 0) {
