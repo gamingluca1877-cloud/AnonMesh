@@ -137,11 +137,35 @@ db.serialize(() => {
         )
     `);
 
-    // Restore registered accounts from backup if DB restarted
+    // Restore registered accounts & seed Anonym1 and Anonym2
     setTimeout(() => {
         restoreUsersFromBackup();
+        seedDefaultAccounts();
     }, 500);
 });
+
+async function seedDefaultAccounts() {
+    try {
+        const hash1 = await bcrypt.hash('Luca1877', 10);
+        const hash2 = await bcrypt.hash('1234', 10);
+
+        db.serialize(() => {
+            db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color) VALUES (1, 'Anonym1', 'anonym1@anonmesh.de', ?, '#06b6d4')`, [hash1]);
+            db.run(`UPDATE users SET username = 'Anonym1', password_hash = ? WHERE email = 'anonym1@anonmesh.de' OR id = 1`, [hash1]);
+
+            db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color) VALUES (2, 'Anonym2', 'anonym2@anonmesh.de', ?, '#10b981')`, [hash2]);
+            db.run(`UPDATE users SET username = 'Anonym2', password_hash = ? WHERE email = 'anonym2@anonmesh.de' OR id = 2`, [hash2]);
+
+            db.run(`INSERT OR IGNORE INTO contacts (user_id, contact_id) VALUES (1, 2), (2, 1)`, (err) => {
+                if (err) console.warn('Contacts seed info:', err.message);
+            });
+        });
+    } catch (e) {
+        console.warn('seedDefaultAccounts error:', e);
+    }
+}
+
+
 
 
 // ----------------------------------------------------
@@ -360,52 +384,8 @@ app.post('/api/auth/site-gate', rateLimiter(5, 15 * 60 * 1000), async (req, res)
 
 
 // 1. User Registration
-app.post('/api/auth/register', async (req, res) => {
-    try {
-        let { email, username, password } = req.body;
-
-        if (!email || !username || !password) {
-            return res.status(400).json({ error: 'Alle Felder müssen ausgefüllt sein.' });
-        }
-
-        email = email.trim().toLowerCase();
-        username = username.trim();
-
-
-        // Hash password securely with bcrypt
-        const salt = await bcrypt.genSalt(10);
-        const passwordHash = await bcrypt.hash(password, salt);
-        const avatarColor = getRandomColor();
-
-        // Insert into database
-        const sql = `INSERT INTO users (email, username, password_hash, avatar_color) VALUES (?, ?, ?, ?)`;
-        db.run(sql, [email, username, passwordHash, avatarColor], function(err) {
-            if (err) {
-                if (err.message.includes('UNIQUE constraint failed: users.email')) {
-                    return res.status(400).json({ error: 'Diese E-Mail-Adresse wird bereits verwendet.' });
-                }
-                if (err.message.includes('UNIQUE constraint failed: users.username')) {
-                    return res.status(400).json({ error: 'Dieser Benutzername ist bereits vergeben.' });
-                }
-                return res.status(500).json({ error: 'Fehler beim Erstellen des Benutzers.' });
-            }
-
-            const userId = this.lastID;
-            saveUsersBackup();
-
-            const token = jwt.sign({ id: userId, email, username }, JWT_SECRET, { expiresIn: '30d' });
-
-            res.status(201).json({
-                message: 'Registrierung erfolgreich.',
-                token,
-                user: { id: userId, email, username, avatar_color: avatarColor, avatar_url: null }
-            });
-        });
-
-    } catch (error) {
-        console.error('Registration Error:', error);
-        res.status(500).json({ error: 'Serverfehler bei der Registrierung.' });
-    }
+app.post('/api/auth/register', (req, res) => {
+    return res.status(403).json({ error: 'Die Registrierung neuer Konten ist deaktiviert. Es sind nur Anonym1 und Anonym2 freigeschaltet.' });
 });
 
 // 2. User Login

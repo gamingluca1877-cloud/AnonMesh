@@ -276,13 +276,7 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                     </svg>
                 </div>
                 <h2>AnonMesh Portal</h2>
-                <p>Anmelden oder Konto erstellen</p>
-            </div>
-
-            <!-- Tab Buttons -->
-            <div class="auth-tabs">
-                <button id="tab-login-btn" class="tab-btn active" onclick="switchAuthTab('login')">Anmelden</button>
-                <button id="tab-register-btn" class="tab-btn" onclick="switchAuthTab('register')">Registrieren</button>
+                <p>🔒 Geschütztes Portal – Bitte anmelden</p>
             </div>
 
             <!-- Global Alert Container -->
@@ -292,7 +286,7 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
             <form id="login-form" class="auth-form active-form" onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label for="login-input">E-Mail-Adresse oder Benutzername</label>
-                    <input type="text" id="login-input" placeholder="Benutzername oder E-Mail" required autocomplete="username">
+                    <input type="text" id="login-input" placeholder="Benutzername (Anonym1 oder Anonym2)" required autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label for="login-password">Passwort</label>
@@ -304,29 +298,6 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                 </button>
             </form>
 
-            <!-- REGISTER FORM -->
-            <form id="register-form" class="auth-form hidden-form" onsubmit="handleRegister(event)">
-                <div class="form-group">
-                    <label for="reg-username">Eindeutiger Benutzername</label>
-                    <input type="text" id="reg-username" placeholder="Dein Benutzername" required>
-                </div>
-                <div class="form-group">
-                    <label for="reg-email">E-Mail-Adresse</label>
-                    <input type="email" id="reg-email" placeholder="name@domain.de" required>
-                </div>
-                <div class="form-group">
-                    <label for="reg-password">Passwort</label>
-                    <input type="password" id="reg-password" placeholder="••••••••" required>
-                </div>
-                <div class="form-group">
-                    <label for="reg-password-confirm">Passwort bestätigen</label>
-                    <input type="password" id="reg-password-confirm" placeholder="••••••••" required>
-                </div>
-                <button type="submit" id="reg-submit-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #16a34a, #22c55e);">
-                    <span class="btn-text">Konto erstellen</span>
-                    <span class="spinner hidden"></span>
-                </button>
-            </form>
 
         </div>
     </div>
