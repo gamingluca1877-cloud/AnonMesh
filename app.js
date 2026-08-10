@@ -1792,10 +1792,23 @@ function getCallAudioContext() {
         }
     }
     if (callAudioCtx && callAudioCtx.state === 'suspended') {
-        callAudioCtx.resume();
+        callAudioCtx.resume().catch(e => {});
     }
     return callAudioCtx;
 }
+
+// Global User Gesture unlock for AudioContext on any interaction
+window.addEventListener('click', () => {
+    if (callAudioCtx && callAudioCtx.state === 'suspended') {
+        callAudioCtx.resume().catch(e => {});
+    }
+}, { passive: true });
+window.addEventListener('touchstart', () => {
+    if (callAudioCtx && callAudioCtx.state === 'suspended') {
+        callAudioCtx.resume().catch(e => {});
+    }
+}, { passive: true });
+
 
 let pcmAudioProcessor = null;
 let pcmAudioSource = null;
@@ -2097,8 +2110,13 @@ async function acceptIncomingCall() {
 
     callState.targetUserId = callState.pendingCallerId;
 
-    // Pre-unlock audio element inside user click gesture for browser autoplay policies
-    unlockCallAudio();
+    // Immediately resume AudioContext synchronously inside user click handler
+    const ctx = getCallAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch (e) {}
+    }
+    await unlockCallAudio();
+
 
 
     // Populate WhatsApp Call Header Info
