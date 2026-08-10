@@ -1879,93 +1879,11 @@ function stopAudioStreamer() {
 }
 
 async function startAudioStreamer(targetUserId) {
-    stopAudioStreamer();
-    if (!callState.localStream) return;
-
-    try {
-        const audioTracks = callState.localStream.getAudioTracks();
-        if (!audioTracks || audioTracks.length === 0) return;
-
-        const ctx = getCallAudioContext();
-        if (!ctx) return;
-        if (ctx.state === 'suspended') {
-            try { await ctx.resume(); } catch (e) {}
-        }
-
-        const audioStream = new MediaStream([audioTracks[0]]);
-        pcmAudioSource = ctx.createMediaStreamSource(audioStream);
-
-        // Try Modern High-Performance AudioWorkletNode first (zero deprecation warning & dedicated audio thread)
-        if (ctx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
-            try {
-                if (!isVoiceWorkletLoaded) {
-                    const workletCode = `
-                    class VoiceProcessor extends AudioWorkletProcessor {
-                        process(inputs, outputs, parameters) {
-                            const input = inputs[0];
-                            if (input && input[0]) {
-                                const inputChannel = input[0];
-                                const pcm16 = new Int16Array(inputChannel.length);
-                                for (let i = 0; i < inputChannel.length; i++) {
-                                    const s = Math.max(-1, Math.min(1, inputChannel[i]));
-                                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                                }
-                                this.port.postMessage(pcm16);
-                            }
-                            return true;
-                        }
-                    }
-                    registerProcessor('voice-processor', VoiceProcessor);
-                    `;
-                    const blob = new Blob([workletCode], { type: 'application/javascript' });
-                    const workletUrl = URL.createObjectURL(blob);
-                    await ctx.audioWorklet.addModule(workletUrl);
-                    URL.revokeObjectURL(workletUrl);
-                    isVoiceWorkletLoaded = true;
-                }
-
-                pcmAudioWorkletNode = new AudioWorkletNode(ctx, 'voice-processor');
-                pcmAudioWorkletNode.port.onmessage = (e) => {
-                    if (callState.targetUserId && state.socket && !callState.isMicMuted) {
-                        state.socket.emit('call_audio_chunk', {
-                            receiver_id: callState.targetUserId,
-                            pcm: Array.from(e.data)
-                        });
-                    }
-                };
-
-                pcmAudioSource.connect(pcmAudioWorkletNode);
-                return;
-            } catch (workletErr) {
-                console.warn('AudioWorklet fallback to ScriptProcessor:', workletErr);
-            }
-        }
-
-
-        // Legacy Fallback ScriptProcessor
-        pcmAudioProcessor = ctx.createScriptProcessor(1024, 1, 1);
-        pcmAudioProcessor.onaudioprocess = (e) => {
-            if (callState.targetUserId && state.socket && !callState.isMicMuted) {
-                const inputData = e.inputBuffer.getChannelData(0);
-                const pcm16 = new Int16Array(inputData.length);
-                for (let i = 0; i < inputData.length; i++) {
-                    const s = Math.max(-1, Math.min(1, inputData[i]));
-                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-                state.socket.emit('call_audio_chunk', {
-                    receiver_id: callState.targetUserId,
-                    pcm: Array.from(pcm16)
-                });
-            }
-        };
-
-        pcmAudioSource.connect(pcmAudioProcessor);
-
-
-    } catch (e) {
-        console.warn('startAudioStreamer error:', e);
-    }
+    // Pure Discord WebRTC Native Opus Audio: PCM WebSocket streaming is disabled during WebRTC calls
+    // to guarantee 100% crystal-clear, zero-tunnel, zero-underwater voice quality!
+    return;
 }
+
 
 
 let nextPcmPlayTime = 0;
@@ -2277,10 +2195,16 @@ async function acceptIncomingCall() {
 
                 if (remoteVideo && event.track.kind === 'video') {
                     remoteVideo.srcObject = stream;
+                    remoteVideo.style.display = 'block';
+                    const remoteAvatar = document.getElementById('remote-avatar-container');
+                    const remoteLiveBadge = document.getElementById('remote-live-badge');
+                    if (remoteAvatar) remoteAvatar.style.display = 'none';
+                    if (remoteLiveBadge) remoteLiveBadge.style.display = 'block';
                     remoteVideo.play().catch(e => console.warn('Video play:', e));
                 }
             }
         };
+
 
         callState.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
@@ -2443,18 +2367,20 @@ let screenStream = null;
 async function toggleScreenShare() {
     const btn = document.getElementById('toggle-screen-btn');
     const localVideo = document.getElementById('local-video');
-    const voicePlaceholder = document.getElementById('voice-stage-placeholder');
+    const localAvatar = document.getElementById('local-avatar-container');
+    const localLiveBadge = document.getElementById('local-live-badge');
 
     if (screenStream) {
         // Stop active screen share stream
         screenStream.getTracks().forEach(track => track.stop());
         screenStream = null;
         if (btn) {
-            btn.style.background = 'linear-gradient(135deg, #5865f2, #4752c4)';
-            btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><span>Bildschirm teilen 🖥️</span>`;
+            btn.style.background = '#23a55a';
+            btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><span>Bildschirm streamen 🖥️</span>`;
         }
         if (localVideo) localVideo.style.display = 'none';
-        if (voicePlaceholder) voicePlaceholder.style.display = 'flex';
+        if (localAvatar) localAvatar.style.display = 'flex';
+        if (localLiveBadge) localLiveBadge.style.display = 'none';
 
         if (callState.peerConnection) {
             const senders = callState.peerConnection.getSenders();
@@ -2463,7 +2389,7 @@ async function toggleScreenShare() {
                 callState.peerConnection.removeTrack(videoSender);
             }
         }
-        updateCallStatusBadge('📞 Anruf verbunden (Sprache)');
+        updateCallStatusBadge('🟢 Sprachchat verbunden');
         return;
     }
 
@@ -2487,11 +2413,12 @@ async function toggleScreenShare() {
             localVideo.style.display = 'block';
             localVideo.play().catch(e => {});
         }
-        if (voicePlaceholder) voicePlaceholder.style.display = 'none';
+        if (localAvatar) localAvatar.style.display = 'none';
+        if (localLiveBadge) localLiveBadge.style.display = 'block';
 
         if (btn) {
-            btn.style.background = 'linear-gradient(135deg, #da373c, #c0262a)';
-            btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><span>Stream beenden 🔴</span>`;
+            btn.style.background = '#da373c';
+            btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><span>Stream beenden 🔴</span>`;
         }
 
         if (callState.peerConnection) {
@@ -2514,7 +2441,7 @@ async function toggleScreenShare() {
             });
         }
 
-        updateCallStatusBadge('🔴 LIVE: Bildschirm wird gestreamt (60 FPS)');
+        updateCallStatusBadge('🔴 LIVE: Bildschirm wird gestreamt');
 
         screenTrack.onended = () => {
             if (screenStream) toggleScreenShare();
@@ -2523,6 +2450,7 @@ async function toggleScreenShare() {
         console.warn('Screen share canceled or failed:', err);
     }
 }
+
 
 // Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
 window.startCall = startCall;
