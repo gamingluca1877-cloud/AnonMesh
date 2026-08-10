@@ -807,11 +807,12 @@ io.on('connection', (socket) => {
     // ----------------------------------------------------
     // WebRTC HD Audio/Video Call Signaling
     // ----------------------------------------------------
-    socket.on('call_audio_chunk', ({ receiver_id, audioData }) => {
-        if (receiver_id && audioData) {
-            emitToUser(receiver_id, 'incoming_call_audio', { sender_id: userId, audioData });
+    socket.on('call_audio_chunk', ({ receiver_id, pcm, audioData }) => {
+        if (receiver_id) {
+            emitToUser(receiver_id, 'incoming_call_audio', { sender_id: userId, pcm, audioData });
         }
     });
+
 
     socket.on('call_user', ({ receiver_id, offer, call_type }) => {
         if (receiver_id) {
