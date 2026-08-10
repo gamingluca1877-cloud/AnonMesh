@@ -2139,10 +2139,14 @@ async function startCall(callType) {
 
                 if (remoteVideo && event.track.kind === 'video') {
                     remoteVideo.srcObject = stream;
+                    remoteVideo.style.display = 'block';
+                    const voicePlaceholder = document.getElementById('voice-stage-placeholder');
+                    if (voicePlaceholder) voicePlaceholder.style.display = 'none';
                     remoteVideo.play().catch(e => console.warn('Video play:', e));
                 }
             }
         };
+
 
         callState.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
@@ -2428,6 +2432,92 @@ async function toggleMuteCam() {
         }
     }
 }
+let screenStream = null;
+
+async function toggleScreenShare() {
+    const btn = document.getElementById('toggle-screen-btn');
+    const localVideo = document.getElementById('local-video');
+    const voicePlaceholder = document.getElementById('voice-stage-placeholder');
+
+    if (screenStream) {
+        // Stop active screen share stream
+        screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
+        if (btn) {
+            btn.style.background = 'linear-gradient(135deg, #5865f2, #4752c4)';
+            btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><span>Bildschirm teilen 🖥️</span>`;
+        }
+        if (localVideo) localVideo.style.display = 'none';
+        if (voicePlaceholder) voicePlaceholder.style.display = 'flex';
+
+        if (callState.peerConnection) {
+            const senders = callState.peerConnection.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                callState.peerConnection.removeTrack(videoSender);
+            }
+        }
+        updateCallStatusBadge('📞 Anruf verbunden (Sprache)');
+        return;
+    }
+
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                cursor: 'always',
+                displaySurface: 'monitor',
+                frameRate: { ideal: 60, max: 60 },
+                width: { max: 1920 },
+                height: { max: 1080 }
+            },
+            audio: true
+        });
+
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (!screenTrack) return;
+
+        if (localVideo) {
+            localVideo.srcObject = screenStream;
+            localVideo.style.display = 'block';
+            localVideo.play().catch(e => {});
+        }
+        if (voicePlaceholder) voicePlaceholder.style.display = 'none';
+
+        if (btn) {
+            btn.style.background = 'linear-gradient(135deg, #da373c, #c0262a)';
+            btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><span>Stream beenden 🔴</span>`;
+        }
+
+        if (callState.peerConnection) {
+            const senders = callState.peerConnection.getSenders();
+            const existingVideoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (existingVideoSender) {
+                await existingVideoSender.replaceTrack(screenTrack);
+            } else {
+                callState.peerConnection.addTrack(screenTrack, screenStream);
+            }
+
+            const offer = await callState.peerConnection.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });
+            if (offer && offer.sdp) offer.sdp = enforceSendRecvSDP(offer.sdp);
+            await callState.peerConnection.setLocalDescription(offer);
+
+            state.socket.emit('call_user', {
+                receiver_id: callState.targetUserId,
+                offer,
+                call_type: 'video'
+            });
+        }
+
+        updateCallStatusBadge('🔴 LIVE: Bildschirm wird gestreamt (60 FPS)');
+
+        screenTrack.onended = () => {
+            if (screenStream) toggleScreenShare();
+        };
+    } catch (err) {
+        console.warn('Screen share canceled or failed:', err);
+    }
+}
+
 // Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
 window.startCall = startCall;
 window.acceptIncomingCall = acceptIncomingCall;
@@ -2435,5 +2525,7 @@ window.rejectIncomingCall = rejectIncomingCall;
 window.endCurrentCall = endCurrentCall;
 window.toggleMuteMic = toggleMuteMic;
 window.toggleMuteCam = toggleMuteCam;
+window.toggleScreenShare = toggleScreenShare;
+
 
 
