@@ -1749,20 +1749,27 @@ function createSilentMediaStream() {
     }
 }
 
-async function getMediaStream(callType) {
+async function getMediaStream(callType = 'audio') {
     try {
-        if (callType === 'video') {
-            try {
-                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            } catch (e1) {
-                return await navigator.mediaDevices.getUserMedia({ audio: true });
-            }
-        } else {
-            return await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            return await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 2,
+                    sampleRate: 48000
+                },
+                video: false
+            });
         }
     } catch (err) {
-        console.warn('⚠️ Media device unavailable/blocked. Using silent synthetic stream fallback.', err);
-        return createSilentMediaStream();
+        console.warn('⚠️ Media device error:', err);
+        try {
+            return await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e2) {
+            return createSilentMediaStream();
+        }
     }
 }
 
@@ -1854,17 +1861,11 @@ function startAudioStreamer(targetUserId) {
 
         const audioStream = new MediaStream([audioTracks[0]]);
         pcmAudioSource = ctx.createMediaStreamSource(audioStream);
-        pcmAudioProcessor = ctx.createScriptProcessor(2048, 1, 1);
+        pcmAudioProcessor = ctx.createScriptProcessor(1024, 1, 1);
 
-        let lastSendTime = 0;
         pcmAudioProcessor.onaudioprocess = (e) => {
-            const now = Date.now();
-            if (now - lastSendTime < 60) return; // limit to ~16 packets/sec for smooth network flow
-            lastSendTime = now;
-
             if (callState.targetUserId && state.socket && !callState.isMicMuted) {
                 const inputData = e.inputBuffer.getChannelData(0);
-                // Convert Float32 PCM to 16-bit Int PCM array
                 const pcm16 = new Int16Array(inputData.length);
                 for (let i = 0; i < inputData.length; i++) {
                     const s = Math.max(-1, Math.min(1, inputData[i]));
@@ -1887,7 +1888,6 @@ function startAudioStreamer(targetUserId) {
     }
 }
 
-
 let nextPcmPlayTime = 0;
 
 function playPcmAudioChunk(pcmArray) {
@@ -1897,7 +1897,7 @@ function playPcmAudioChunk(pcmArray) {
         if (!ctx) return;
         if (ctx.state === 'suspended') ctx.resume().catch(e => {});
 
-        const buffer = ctx.createBuffer(1, pcmArray.length, ctx.sampleRate || 44100);
+        const buffer = ctx.createBuffer(1, pcmArray.length, ctx.sampleRate || 48000);
         const channelData = buffer.getChannelData(0);
         for (let i = 0; i < pcmArray.length; i++) {
             channelData[i] = pcmArray[i] / 32768.0;
@@ -1908,7 +1908,7 @@ function playPcmAudioChunk(pcmArray) {
         source.connect(ctx.destination);
 
         const currentTime = ctx.currentTime;
-        if (nextPcmPlayTime < currentTime) {
+        if (nextPcmPlayTime < currentTime || (nextPcmPlayTime - currentTime > 0.3)) {
             nextPcmPlayTime = currentTime;
         }
         source.start(nextPcmPlayTime);
@@ -1917,6 +1917,7 @@ function playPcmAudioChunk(pcmArray) {
         console.warn('playPcmAudioChunk error:', e);
     }
 }
+
 
 async function playCallAudioChunk(audioData) {
     if (!audioData) return;
