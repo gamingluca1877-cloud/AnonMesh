@@ -1778,12 +1778,16 @@ function createSilentMediaStream() {
 async function getMediaStream(callType = 'audio') {
     try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const audioConstraints = {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            };
+            if (selectedMicDeviceId) {
+                audioConstraints.deviceId = { exact: selectedMicDeviceId };
+            }
             return await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                },
+                audio: audioConstraints,
                 video: false
             });
         }
@@ -1796,6 +1800,7 @@ async function getMediaStream(callType = 'audio') {
         }
     }
 }
+
 
 
 
@@ -2452,6 +2457,126 @@ async function toggleScreenShare() {
 }
 
 
+let selectedMicDeviceId = null;
+let selectedSpeakerDeviceId = null;
+
+async function populateDiscordAudioDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const micSelect = document.getElementById('mic-select');
+        const speakerSelect = document.getElementById('speaker-select');
+
+        if (micSelect) {
+            micSelect.innerHTML = '';
+            const mics = devices.filter(d => d.kind === 'audioinput');
+            if (mics.length === 0) {
+                micSelect.innerHTML = '<option value="">Standard-Mikrofon</option>';
+            } else {
+                mics.forEach((m, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = m.deviceId;
+                    opt.textContent = m.label || `Mikrofon ${idx + 1}`;
+                    if (selectedMicDeviceId && m.deviceId === selectedMicDeviceId) opt.selected = true;
+                    micSelect.appendChild(opt);
+                });
+            }
+        }
+
+        if (speakerSelect) {
+            speakerSelect.innerHTML = '';
+            const speakers = devices.filter(d => d.kind === 'audiooutput');
+            if (speakers.length === 0) {
+                speakerSelect.innerHTML = '<option value="">Standard-Lautsprecher</option>';
+            } else {
+                speakers.forEach((s, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = s.deviceId;
+                    opt.textContent = s.label || `Lautsprecher / Headset ${idx + 1}`;
+                    if (selectedSpeakerDeviceId && s.deviceId === selectedSpeakerDeviceId) opt.selected = true;
+                    speakerSelect.appendChild(opt);
+                });
+            }
+        }
+    } catch (e) {
+        console.warn('enumerateDevices error:', e);
+    }
+}
+
+function openDiscordAudioSettings() {
+    populateDiscordAudioDevices();
+    const modal = document.getElementById('discord-audio-settings-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeDiscordAudioSettings() {
+    const modal = document.getElementById('discord-audio-settings-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function changeAudioInputDevice(deviceId) {
+    if (!deviceId) return;
+    selectedMicDeviceId = deviceId;
+    console.log('[🎤 MIC CHANGED]', deviceId);
+
+    if (callState.localStream) {
+        try {
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    deviceId: { exact: deviceId },
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            });
+            const newTrack = newStream.getAudioTracks()[0];
+            if (newTrack && callState.peerConnection) {
+                const senders = callState.peerConnection.getSenders();
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+                if (audioSender) {
+                    await audioSender.replaceTrack(newTrack);
+                }
+                callState.localStream = newStream;
+            }
+        } catch (e) {
+            console.warn('changeAudioInputDevice error:', e);
+        }
+    }
+}
+
+async function changeAudioOutputDevice(deviceId) {
+    if (!deviceId) return;
+    selectedSpeakerDeviceId = deviceId;
+    console.log('[🔊 SPEAKER CHANGED]', deviceId);
+
+    const remoteAudio = document.getElementById('remote-audio');
+    if (remoteAudio && typeof remoteAudio.setSinkId === 'function') {
+        try {
+            await remoteAudio.setSinkId(deviceId);
+        } catch (e) {
+            console.warn('setSinkId error:', e);
+        }
+    }
+}
+
+function playTestAudio() {
+    try {
+        const ctx = getCallAudioContext();
+        if (ctx) {
+            if (ctx.state === 'suspended') ctx.resume().catch(e => {});
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, ctx.currentTime);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.4);
+        }
+    } catch (e) {}
+}
+
 // Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
 window.startCall = startCall;
 window.acceptIncomingCall = acceptIncomingCall;
@@ -2460,6 +2585,12 @@ window.endCurrentCall = endCurrentCall;
 window.toggleMuteMic = toggleMuteMic;
 window.toggleMuteCam = toggleMuteCam;
 window.toggleScreenShare = toggleScreenShare;
+window.openDiscordAudioSettings = openDiscordAudioSettings;
+window.closeDiscordAudioSettings = closeDiscordAudioSettings;
+window.changeAudioInputDevice = changeAudioInputDevice;
+window.changeAudioOutputDevice = changeAudioOutputDevice;
+window.playTestAudio = playTestAudio;
+
 
 
 

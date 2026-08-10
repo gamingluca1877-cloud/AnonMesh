@@ -569,13 +569,16 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                     <span id="active-call-timer" style="color: #949ba4; font-size: 0.85rem; font-family: monospace; margin-left: 6px;">00:00</span>
                 </div>
 
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="color: #23a55a; font-size: 0.8rem; font-weight: 600;">🔒 256-Bit E2EE</span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button class="icon-btn" title="Discord Audio-Einstellungen (Mikrofon & Lautsprecher)" onclick="openDiscordAudioSettings()" style="background: #2b2d31; color: #dbdee1; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                        ⚙️ Sound-Einstellungen
+                    </button>
                     <button class="icon-btn" title="Vollbild" onclick="document.getElementById('active-call-modal').requestFullscreen?.()" style="background: #2b2d31; color: #dbdee1; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600;">
                         ⛶ Vollbild
                     </button>
                 </div>
             </div>
+
 
             <!-- Discord 2-Grid Participant Stage (Matching User Screenshot) -->
             <div class="discord-grid-stage" style="flex: 1; padding: 16px; background: #111214; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; align-content: center; justify-content: center; overflow: hidden;">
@@ -667,8 +670,53 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
 
 
 
+    <!-- ==================================================== -->
+    <!-- 6. DISCORD AUDIO & DEVICE SETTINGS MODAL -->
+    <!-- ==================================================== -->
+    <div id="discord-audio-settings-modal" class="modal-overlay hidden" style="z-index: 10000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);">
+        <div style="background: #2b2d31; width: 90vw; max-width: 520px; border-radius: 16px; padding: 24px; color: #f2f3f5; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 1.2rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                    ⚙️ Discord Sound-Einstellungen
+                </h3>
+                <button onclick="closeDiscordAudioSettings()" style="background: transparent; border: none; color: #b5bac1; font-size: 1.5rem; cursor: pointer; padding: 0 4px;">✕</button>
+            </div>
+
+            <!-- Microphone Selection -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.82rem; font-weight: 700; color: #b5bac1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                    🎤 EINGABEGERÄT (MIKROFON)
+                </label>
+                <select id="mic-select" onchange="changeAudioInputDevice(this.value)" style="width: 100%; padding: 12px; border-radius: 8px; background: #1e1f22; color: #f2f3f5; border: 1px solid rgba(255,255,255,0.12); font-size: 0.92rem; outline: none; cursor: pointer;">
+                    <option value="">Standard-Mikrofon</option>
+                </select>
+            </div>
+
+            <!-- Speaker / Headphone Selection -->
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; font-size: 0.82rem; font-weight: 700; color: #b5bac1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                    🔊 AUSGABEGERÄT (LAUTSPRECHER / KOPFHÖRER)
+                </label>
+                <select id="speaker-select" onchange="changeAudioOutputDevice(this.value)" style="width: 100%; padding: 12px; border-radius: 8px; background: #1e1f22; color: #f2f3f5; border: 1px solid rgba(255,255,255,0.12); font-size: 0.92rem; outline: none; cursor: pointer;">
+                    <option value="">Standard-Lautsprecher</option>
+                </select>
+            </div>
+
+            <!-- Actions Bar -->
+            <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+                <button onclick="playTestAudio()" style="background: #313338; color: #dbdee1; border: 1px solid rgba(255,255,255,0.1); padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.88rem; display: flex; align-items: center; gap: 6px;">
+                    🔔 Sound-Test abspielen
+                </button>
+                <button onclick="closeDiscordAudioSettings()" style="background: #5865f2; color: #ffffff; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.9rem;">
+                    Fertig
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Application Script -->
     <script src="app.js"></script>
 </body>
+
 </html>
 
