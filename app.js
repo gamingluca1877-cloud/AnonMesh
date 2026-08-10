@@ -1789,8 +1789,25 @@ function getCallAudioContext() {
     return callAudioCtx;
 }
 
+function stopAudioStreamer() {
+    if (liveAudioRecorder) {
+        try {
+            if (liveAudioRecorder.state !== 'inactive') {
+                liveAudioRecorder.stop();
+            }
+        } catch (e) {}
+        try {
+            if (liveAudioRecorder.stream) {
+                liveAudioRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        } catch (e) {}
+        liveAudioRecorder = null;
+    }
+}
+
 function startAudioStreamer(targetUserId) {
     stopAudioStreamer();
+
     if (!callState.localStream) return;
     try {
         const audioTracks = callState.localStream.getAudioTracks();
