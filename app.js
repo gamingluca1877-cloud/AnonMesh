@@ -834,8 +834,8 @@ function initSocketConnection() {
 
     // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge Fallback)
     state.socket.on('incoming_call_audio', ({ sender_id, pcm, audioData }) => {
-        // Prevent dual-playback tunnel echo when WebRTC P2P stream is active!
-        if (callState.peerConnection && (callState.peerConnection.connectionState === 'connected' || callState.peerConnection.iceConnectionState === 'connected')) {
+        // Completely bypass WebSocket PCM bridge during active WebRTC calls to prevent tunnel echo!
+        if (callState.peerConnection) {
             return;
         }
         if (!callState.targetUserId || String(callState.targetUserId) === String(sender_id)) {
@@ -846,6 +846,7 @@ function initSocketConnection() {
             }
         }
     });
+
 
 
 
@@ -1934,10 +1935,6 @@ async function startAudioStreamer(targetUserId) {
                 };
 
                 pcmAudioSource.connect(pcmAudioWorkletNode);
-                const gainNode = ctx.createGain();
-                gainNode.gain.value = 0;
-                pcmAudioWorkletNode.connect(gainNode);
-                gainNode.connect(ctx.destination);
                 return;
             } catch (workletErr) {
                 console.warn('AudioWorklet fallback to ScriptProcessor:', workletErr);
@@ -1963,10 +1960,7 @@ async function startAudioStreamer(targetUserId) {
         };
 
         pcmAudioSource.connect(pcmAudioProcessor);
-        const gainNode = ctx.createGain();
-        gainNode.gain.value = 0;
-        pcmAudioProcessor.connect(gainNode);
-        gainNode.connect(ctx.destination);
+
 
     } catch (e) {
         console.warn('startAudioStreamer error:', e);
