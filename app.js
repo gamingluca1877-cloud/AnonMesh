@@ -1840,10 +1840,15 @@ window.addEventListener('touchstart', () => {
 }, { passive: true });
 
 
+let pcmAudioWorkletNode = null;
 let pcmAudioProcessor = null;
 let pcmAudioSource = null;
 
 function stopAudioStreamer() {
+    if (pcmAudioWorkletNode) {
+        try { pcmAudioWorkletNode.disconnect(); } catch (e) {}
+        pcmAudioWorkletNode = null;
+    }
     if (pcmAudioProcessor) {
         try { pcmAudioProcessor.disconnect(); } catch (e) {}
         pcmAudioProcessor = null;
@@ -1860,7 +1865,7 @@ function stopAudioStreamer() {
     }
 }
 
-function startAudioStreamer(targetUserId) {
+async function startAudioStreamer(targetUserId) {
     stopAudioStreamer();
     if (!callState.localStream) return;
 
@@ -1870,12 +1875,62 @@ function startAudioStreamer(targetUserId) {
 
         const ctx = getCallAudioContext();
         if (!ctx) return;
-        if (ctx.state === 'suspended') ctx.resume().catch(e => {});
+        if (ctx.state === 'suspended') {
+            try { await ctx.resume(); } catch (e) {}
+        }
 
         const audioStream = new MediaStream([audioTracks[0]]);
         pcmAudioSource = ctx.createMediaStreamSource(audioStream);
-        pcmAudioProcessor = ctx.createScriptProcessor(1024, 1, 1);
 
+        // Try Modern High-Performance AudioWorkletNode first (zero deprecation warning & dedicated audio thread)
+        if (ctx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
+            try {
+                const workletCode = `
+                class VoiceProcessor extends AudioWorkletProcessor {
+                    process(inputs, outputs, parameters) {
+                        const input = inputs[0];
+                        if (input && input[0]) {
+                            const inputChannel = input[0];
+                            const pcm16 = new Int16Array(inputChannel.length);
+                            for (let i = 0; i < inputChannel.length; i++) {
+                                const s = Math.max(-1, Math.min(1, inputChannel[i]));
+                                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                            }
+                            this.port.postMessage(pcm16);
+                        }
+                        return true;
+                    }
+                }
+                registerProcessor('voice-processor', VoiceProcessor);
+                `;
+                const blob = new Blob([workletCode], { type: 'application/javascript' });
+                const workletUrl = URL.createObjectURL(blob);
+                await ctx.audioWorklet.addModule(workletUrl);
+                URL.revokeObjectURL(workletUrl);
+
+                pcmAudioWorkletNode = new AudioWorkletNode(ctx, 'voice-processor');
+                pcmAudioWorkletNode.port.onmessage = (e) => {
+                    if (callState.targetUserId && state.socket && !callState.isMicMuted) {
+                        state.socket.emit('call_audio_chunk', {
+                            receiver_id: callState.targetUserId,
+                            pcm: Array.from(e.data)
+                        });
+                    }
+                };
+
+                pcmAudioSource.connect(pcmAudioWorkletNode);
+                const gainNode = ctx.createGain();
+                gainNode.gain.value = 0;
+                pcmAudioWorkletNode.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                return;
+            } catch (workletErr) {
+                console.warn('AudioWorklet fallback to ScriptProcessor:', workletErr);
+            }
+        }
+
+        // Legacy Fallback ScriptProcessor
+        pcmAudioProcessor = ctx.createScriptProcessor(1024, 1, 1);
         pcmAudioProcessor.onaudioprocess = (e) => {
             if (callState.targetUserId && state.socket && !callState.isMicMuted) {
                 const inputData = e.inputBuffer.getChannelData(0);
@@ -1893,13 +1948,15 @@ function startAudioStreamer(targetUserId) {
 
         pcmAudioSource.connect(pcmAudioProcessor);
         const gainNode = ctx.createGain();
-        gainNode.gain.value = 0; // Mute local mic feedback to self
+        gainNode.gain.value = 0;
         pcmAudioProcessor.connect(gainNode);
         gainNode.connect(ctx.destination);
+
     } catch (e) {
-        console.warn('startAudioStreamer PCM error:', e);
+        console.warn('startAudioStreamer error:', e);
     }
 }
+
 
 let nextPcmPlayTime = 0;
 
