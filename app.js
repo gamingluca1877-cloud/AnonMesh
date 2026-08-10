@@ -1842,6 +1842,30 @@ async function playCallAudioChunk(audioData) {
     } catch (e) {}
 }
 
+function updateCallStatusBadge(text, isError = false) {
+    const badge = document.getElementById('call-status-badge');
+    if (badge) {
+        badge.textContent = text;
+        if (isError) {
+            badge.style.color = '#f87171';
+            badge.style.borderColor = 'rgba(248, 113, 113, 0.4)';
+        } else {
+            badge.style.color = '#4ade80';
+            badge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+        }
+    }
+}
+
+async function enumerateAudioDevices() {
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        console.log('[🎙️ HARDWARE DEVICES ENUMERATED]', devices);
+    } catch (e) {
+        console.warn('enumerateAudioDevices error:', e);
+    }
+}
+
 function unlockCallAudio() {
     const ctx = getCallAudioContext();
     if (ctx && ctx.state === 'suspended') {
@@ -1854,7 +1878,9 @@ function unlockCallAudio() {
         remoteAudio.volume = 1.0;
         remoteAudio.play().catch(e => console.warn('Audio play:', e));
     }
+    enumerateAudioDevices();
 }
+
 
 
 async function startCall(callType) {

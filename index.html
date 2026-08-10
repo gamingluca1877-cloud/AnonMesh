@@ -603,6 +603,12 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                 </div>
             </div>
 
+            <!-- Call Status & Hardware Info Badge -->
+            <div id="call-status-badge" style="position: absolute; top: 135px; left: 50%; transform: translateX(-50%); z-index: 60; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(10px); border: 1px solid rgba(34, 197, 94, 0.4); padding: 6px 16px; border-radius: 20px; color: #4ade80; font-size: 0.82rem; font-family: monospace; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                📞 Anruf verbunden...
+            </div>
+
+
             <!-- Remote Audio & Video Streams -->
             <audio id="remote-audio" autoplay playsinline style="display: none;"></audio>
             <video id="remote-video" autoplay playsinline class="remote-video"></video>
