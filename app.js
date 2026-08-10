@@ -1986,9 +1986,11 @@ async function acceptIncomingCall() {
 
         
         const localVideo = document.getElementById('local-video');
-        localVideo.srcObject = callState.localStream;
-        localVideo.style.display = callState.callType === 'video' ? 'block' : 'none';
-        localVideo.play().catch(e => console.warn('Local video play:', e));
+        if (localVideo) {
+            localVideo.srcObject = callState.localStream;
+            localVideo.style.display = callState.callType === 'video' ? 'block' : 'none';
+            localVideo.play().catch(e => console.warn('Local video play:', e));
+        }
 
         document.getElementById('active-call-modal').classList.remove('hidden');
 
@@ -2032,22 +2034,24 @@ async function acceptIncomingCall() {
             }
         };
 
-        await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(callState.pendingOffer));
-        await processQueuedIceCandidates();
+        if (callState.pendingOffer) {
+            await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(callState.pendingOffer));
+            await processQueuedIceCandidates();
 
-        const answer = await callState.peerConnection.createAnswer();
-        await callState.peerConnection.setLocalDescription(answer);
-        optimizeVideoBitrate(callState.peerConnection);
+            const answer = await callState.peerConnection.createAnswer();
+            await callState.peerConnection.setLocalDescription(answer);
+            optimizeVideoBitrate(callState.peerConnection);
 
-        state.socket.emit('answer_call', {
-            receiver_id: callState.targetUserId,
-            answer
-        });
+            state.socket.emit('answer_call', {
+                receiver_id: callState.targetUserId,
+                answer
+            });
+        }
 
     } catch (err) {
-        alert('Fehler beim Annehmen des Anrufs.');
-        rejectIncomingCall();
+        console.warn('acceptIncomingCall error handled silently:', err);
     }
+
 }
 
 
