@@ -1950,8 +1950,25 @@ function updateCallStatusBadge(text, isError = false) {
     }
 }
 
+async function unlockCallAudio() {
+
+    try {
+        const ctx = getCallAudioContext();
+        if (ctx && ctx.state === 'suspended') {
+            await ctx.resume();
+        }
+    } catch (e) {}
+
+    const remoteAudio = document.getElementById('remote-audio');
+    if (remoteAudio) {
+        remoteAudio.muted = false;
+        remoteAudio.volume = 1.0;
+        remoteAudio.play().catch(e => {});
+    }
+}
 
 async function startCall(callType) {
+
 
     if (!state.activeContact) {
         if (state.contacts && state.contacts.length > 0) {
