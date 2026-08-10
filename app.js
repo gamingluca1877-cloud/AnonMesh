@@ -1773,7 +1773,12 @@ async function getMediaStream(callType = 'audio') {
             const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
-                autoGainControl: true
+                autoGainControl: true,
+                googEchoCancellation: true,
+                googAutoGainControl: true,
+                googNoiseSuppression: true,
+                googHighpassFilter: true,
+                googTypingNoiseDetection: true
             };
             if (selectedMicDeviceId) {
                 audioConstraints.deviceId = { exact: selectedMicDeviceId };
@@ -1792,6 +1797,7 @@ async function getMediaStream(callType = 'audio') {
         }
     }
 }
+
 
 
 
