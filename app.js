@@ -1950,13 +1950,20 @@ async function startCall(callType) {
 
         callState.peerConnection = new RTCPeerConnection(rtcConfig);
 
+        // Explicit audio transceiver for 100% PC-to-PC audio negotiation
+        try {
+            callState.peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+        } catch (e) {}
 
-        callState.localStream.getTracks().forEach(track => {
-            track.enabled = true;
-            callState.peerConnection.addTrack(track, callState.localStream);
-        });
+        if (callState.localStream) {
+            callState.localStream.getTracks().forEach(track => {
+                track.enabled = true;
+                try { callState.peerConnection.addTrack(track, callState.localStream); } catch(e) {}
+            });
+        }
 
         callState.peerConnection.ontrack = (event) => {
+            console.log('[🔊 WEBRTC TRACK RECEIVED]', event.track.kind);
             const remoteVideo = document.getElementById('remote-video');
             let remoteAudio = document.getElementById('remote-audio');
             if (!remoteAudio) {
@@ -1966,19 +1973,39 @@ async function startCall(callType) {
                 remoteAudio.playsInline = true;
                 document.body.appendChild(remoteAudio);
             }
+
             const stream = (event.streams && event.streams[0]) ? event.streams[0] : (event.track ? new MediaStream([event.track]) : null);
             if (stream) {
                 remoteAudio.srcObject = stream;
                 remoteAudio.volume = 1.0;
                 remoteAudio.muted = false;
-                remoteAudio.play().catch(e => console.warn('Audio play:', e));
 
-                if (remoteVideo) {
+                const ctx = getCallAudioContext();
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume().catch(e => {});
+                }
+
+                const playPromise = remoteAudio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => {
+                        console.warn('Audio play blocked, adding document click unlock:', err);
+                        const unlockHandler = () => {
+                            remoteAudio.muted = false;
+                            remoteAudio.volume = 1.0;
+                            remoteAudio.play().catch(e => {});
+                            document.removeEventListener('click', unlockHandler);
+                        };
+                        document.addEventListener('click', unlockHandler, { once: true });
+                    });
+                }
+
+                if (remoteVideo && event.track.kind === 'video') {
                     remoteVideo.srcObject = stream;
                     remoteVideo.play().catch(e => console.warn('Video play:', e));
                 }
             }
         };
+
 
 
 
@@ -2056,12 +2083,19 @@ async function acceptIncomingCall() {
 
         callState.peerConnection = new RTCPeerConnection(rtcConfig);
 
-        callState.localStream.getTracks().forEach(track => {
-            track.enabled = true;
-            callState.peerConnection.addTrack(track, callState.localStream);
-        });
+        try {
+            callState.peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
+        } catch (e) {}
+
+        if (callState.localStream) {
+            callState.localStream.getTracks().forEach(track => {
+                track.enabled = true;
+                try { callState.peerConnection.addTrack(track, callState.localStream); } catch(e) {}
+            });
+        }
 
         callState.peerConnection.ontrack = (event) => {
+            console.log('[🔊 WEBRTC TRACK RECEIVED IN ACCEPT]', event.track.kind);
             const remoteVideo = document.getElementById('remote-video');
             let remoteAudio = document.getElementById('remote-audio');
             if (!remoteAudio) {
@@ -2071,18 +2105,38 @@ async function acceptIncomingCall() {
                 remoteAudio.playsInline = true;
                 document.body.appendChild(remoteAudio);
             }
-            if (event.streams && event.streams[0]) {
-                remoteAudio.srcObject = event.streams[0];
+            const stream = (event.streams && event.streams[0]) ? event.streams[0] : (event.track ? new MediaStream([event.track]) : null);
+            if (stream) {
+                remoteAudio.srcObject = stream;
                 remoteAudio.volume = 1.0;
                 remoteAudio.muted = false;
-                remoteAudio.play().catch(e => console.warn('Audio play:', e));
 
-                if (remoteVideo) {
-                    remoteVideo.srcObject = event.streams[0];
+                const ctx = getCallAudioContext();
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume().catch(e => {});
+                }
+
+                const playPromise = remoteAudio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => {
+                        console.warn('Audio play blocked in accept, adding click unlock:', err);
+                        const unlockHandler = () => {
+                            remoteAudio.muted = false;
+                            remoteAudio.volume = 1.0;
+                            remoteAudio.play().catch(e => {});
+                            document.removeEventListener('click', unlockHandler);
+                        };
+                        document.addEventListener('click', unlockHandler, { once: true });
+                    });
+                }
+
+                if (remoteVideo && event.track.kind === 'video') {
+                    remoteVideo.srcObject = stream;
                     remoteVideo.play().catch(e => console.warn('Video play:', e));
                 }
             }
         };
+
 
 
         callState.peerConnection.onicecandidate = (event) => {
