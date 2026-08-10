@@ -832,8 +832,12 @@ function initSocketConnection() {
         updateContactLastMessage(msg.sender_id, msg.content, msg.timestamp);
     });
 
-    // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge)
+    // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge Fallback)
     state.socket.on('incoming_call_audio', ({ sender_id, pcm, audioData }) => {
+        // Prevent dual-playback tunnel echo when WebRTC P2P stream is active!
+        if (callState.peerConnection && (callState.peerConnection.connectionState === 'connected' || callState.peerConnection.iceConnectionState === 'connected')) {
+            return;
+        }
         if (!callState.targetUserId || String(callState.targetUserId) === String(sender_id)) {
             if (pcm) {
                 playPcmAudioChunk(pcm);
@@ -842,6 +846,7 @@ function initSocketConnection() {
             }
         }
     });
+
 
 
 
@@ -1708,8 +1713,15 @@ function enforceSendRecvSDP(sdp) {
     if (!sdp || typeof sdp !== 'string') return sdp;
     let modifiedSDP = sdp.replace(/a=recvonly/g, 'a=sendrecv');
     modifiedSDP = modifiedSDP.replace(/a=sendonly/g, 'a=sendrecv');
+    // Inject Opus FEC (Forward Error Correction) & Stereo Jitter Buffer to eliminate choppiness
+    if (modifiedSDP.includes('useinbandfec=1')) {
+        modifiedSDP = modifiedSDP.replace(/useinbandfec=1/g, 'useinbandfec=1;minptime=10;stereo=1;maxaveragebitrate=128000');
+    } else {
+        modifiedSDP = modifiedSDP.replace(/a=fmtp:111 /g, 'a=fmtp:111 useinbandfec=1;minptime=10;stereo=1;maxaveragebitrate=128000;');
+    }
     return modifiedSDP;
 }
+
 
 
 
