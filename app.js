@@ -1855,11 +1855,15 @@ function startAudioStreamer(targetUserId) {
         };
 
         pcmAudioSource.connect(pcmAudioProcessor);
-        pcmAudioProcessor.connect(ctx.destination);
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 0; // Mute local mic feedback to self
+        pcmAudioProcessor.connect(gainNode);
+        gainNode.connect(ctx.destination);
     } catch (e) {
         console.warn('startAudioStreamer PCM error:', e);
     }
 }
+
 
 let nextPcmPlayTime = 0;
 
@@ -1932,10 +1936,10 @@ async function enumerateAudioDevices() {
     }
 }
 
-function unlockCallAudio() {
+async function unlockCallAudio() {
     const ctx = getCallAudioContext();
     if (ctx && ctx.state === 'suspended') {
-        ctx.resume();
+        try { await ctx.resume(); } catch (e) {}
     }
 
     const remoteAudio = document.getElementById('remote-audio');
@@ -1946,6 +1950,7 @@ function unlockCallAudio() {
     }
     enumerateAudioDevices();
 }
+
 
 
 
