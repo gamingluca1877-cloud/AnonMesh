@@ -579,9 +579,14 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                 </div>
             </div>
 
+            <!-- Discord Audio Unlocker Banner -->
+            <div id="audio-unlock-banner" onclick="unlockCallAudio(); this.style.display='none';" style="background: #5865f2; color: #ffffff; padding: 10px 20px; text-align: center; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4); z-index: 70;">
+                🔊 Ton stumm? Klicke HIER, um den Ton & das Mikrofon sofort freizuschalten! ⚡
+            </div>
 
             <!-- Discord 2-Grid Participant Stage (Matching User Screenshot) -->
             <div class="discord-grid-stage" style="flex: 1; padding: 16px; background: #111214; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; align-content: center; justify-content: center; overflow: hidden;">
+
                 
                 <!-- Hidden Audio Receiver -->
                 <audio id="remote-audio" autoplay playsinline style="display: none;"></audio>
