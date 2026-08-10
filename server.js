@@ -511,73 +511,72 @@ app.put('/api/users/change-username', authenticateToken, (req, res) => {
 app.get('/api/contacts', authenticateToken, (req, res) => {
     const userId = req.user.id;
 
-    // Get all registered team members as contacts so all chats & colleagues are listed automatically
-    const sql = `
-        SELECT DISTINCT u.id, u.username, u.email, u.avatar_color
-        FROM users u
-        WHERE u.id != ?
-        ORDER BY u.username ASC
-    `;
+    // Auto-ensure all users are mutual contacts
+    db.run(`INSERT OR IGNORE INTO contacts (user_id, contact_id) SELECT ?, id FROM users WHERE id != ?`, [userId, userId], () => {
+        const sql = `
+            SELECT DISTINCT u.id, u.username, u.email, u.avatar_color, u.avatar_url
+            FROM users u
+            INNER JOIN contacts c ON u.id = c.contact_id
+            WHERE c.user_id = ?
+            ORDER BY u.username ASC
+        `;
 
+        db.all(sql, [userId], (err, contacts) => {
+            if (err) {
+                return res.status(500).json({ error: 'Fehler beim Laden der Kontakte.' });
+            }
 
+            if (!contacts || contacts.length === 0) {
+                return res.json({ contacts: [] });
+            }
 
+            let completed = 0;
+            const augmentedContacts = [];
 
-    db.all(sql, [userId], (err, contacts) => {
-        if (err) {
-            return res.status(500).json({ error: 'Fehler beim Laden der Kontakte.' });
-        }
+            contacts.forEach((contact) => {
+                const lastMsgSql = `
+                    SELECT content, timestamp, sender_id
+                    FROM messages
+                    WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+                    ORDER BY id DESC LIMIT 1
+                `;
 
-        if (contacts.length === 0) {
-            return res.json({ contacts: [] });
-        }
+                const unreadSql = `
+                    SELECT COUNT(*) as unread_count
+                    FROM messages
+                    WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
+                `;
 
-        // Augment each contact with last message & unread count
-        let completed = 0;
-        const augmentedContacts = [];
-
-        contacts.forEach((contact) => {
-            const lastMsgSql = `
-                SELECT content, timestamp, sender_id
-                FROM messages
-                WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-                ORDER BY id DESC LIMIT 1
-            `;
-
-            const unreadSql = `
-                SELECT COUNT(*) as unread_count
-                FROM messages
-                WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
-            `;
-
-            db.get(lastMsgSql, [userId, contact.id, contact.id, userId], (err, lastMsg) => {
-                db.get(unreadSql, [contact.id, userId], (err, unreadRes) => {
-                    const isOnline = onlineUsers.has(contact.id);
-                    augmentedContacts.push({
-                        ...contact,
-                        is_online: isOnline,
-                        last_message: lastMsg ? lastMsg.content : null,
-                        last_message_time: lastMsg ? lastMsg.timestamp : null,
-                        unread_count: unreadRes ? unreadRes.unread_count : 0
-                    });
-
-                    completed++;
-                    if (completed === contacts.length) {
-                        // Sort by latest message timestamp if present, otherwise username
-                        augmentedContacts.sort((a, b) => {
-                            if (a.last_message_time && b.last_message_time) {
-                                return new Date(b.last_message_time) - new Date(a.last_message_time);
-                            }
-                            if (a.last_message_time) return -1;
-                            if (b.last_message_time) return 1;
-                            return a.username.localeCompare(b.username);
+                db.get(lastMsgSql, [userId, contact.id, contact.id, userId], (err, lastMsg) => {
+                    db.get(unreadSql, [contact.id, userId], (err, unreadRes) => {
+                        const isOnline = onlineUsers.has(contact.id);
+                        augmentedContacts.push({
+                            ...contact,
+                            is_online: isOnline,
+                            last_message: lastMsg ? lastMsg.content : null,
+                            last_message_time: lastMsg ? lastMsg.timestamp : null,
+                            unread_count: unreadRes ? unreadRes.unread_count : 0
                         });
-                        res.json({ contacts: augmentedContacts });
-                    }
+
+                        completed++;
+                        if (completed === contacts.length) {
+                            augmentedContacts.sort((a, b) => {
+                                if (a.last_message_time && b.last_message_time) {
+                                    return new Date(b.last_message_time) - new Date(a.last_message_time);
+                                }
+                                if (a.last_message_time) return -1;
+                                if (b.last_message_time) return 1;
+                                return a.username.localeCompare(b.username);
+                            });
+                            res.json({ contacts: augmentedContacts });
+                        }
+                    });
                 });
             });
         });
     });
 });
+
 
 // 5. Add Contact by Username
 app.post('/api/contacts/add', authenticateToken, (req, res) => {
