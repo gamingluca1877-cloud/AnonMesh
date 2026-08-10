@@ -832,21 +832,11 @@ function initSocketConnection() {
         updateContactLastMessage(msg.sender_id, msg.content, msg.timestamp);
     });
 
-    // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge Fallback)
+    // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge - Disabled for 100% Pure WebRTC Discord Voice)
     state.socket.on('incoming_call_audio', ({ sender_id, pcm, audioData }) => {
-        const remoteAudio = document.getElementById('remote-audio');
-        // If WebRTC direct P2P stream is active and playing, skip PCM fallback to prevent double playback!
-        if (remoteAudio && remoteAudio.srcObject && !remoteAudio.paused && remoteAudio.currentTime > 0) {
-            return;
-        }
-        if (!callState.targetUserId || String(callState.targetUserId) === String(sender_id)) {
-            if (pcm) {
-                playPcmAudioChunk(pcm);
-            } else if (audioData) {
-                playCallAudioChunk(audioData);
-            }
-        }
+        return;
     });
+
 
 
 
@@ -1886,89 +1876,11 @@ function stopAudioStreamer() {
 }
 
 async function startAudioStreamer(targetUserId) {
-    stopAudioStreamer();
-    if (!callState.localStream) return;
-
-    try {
-        const audioTracks = callState.localStream.getAudioTracks();
-        if (!audioTracks || audioTracks.length === 0) return;
-
-        const ctx = getCallAudioContext();
-        if (!ctx) return;
-        if (ctx.state === 'suspended') {
-            try { await ctx.resume(); } catch (e) {}
-        }
-
-        const audioStream = new MediaStream([audioTracks[0]]);
-        pcmAudioSource = ctx.createMediaStreamSource(audioStream);
-
-        if (ctx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
-            try {
-                if (!isVoiceWorkletLoaded) {
-                    const workletCode = `
-                    class VoiceProcessor extends AudioWorkletProcessor {
-                        process(inputs, outputs, parameters) {
-                            const input = inputs[0];
-                            if (input && input[0]) {
-                                const inputChannel = input[0];
-                                const pcm16 = new Int16Array(inputChannel.length);
-                                for (let i = 0; i < inputChannel.length; i++) {
-                                    const s = Math.max(-1, Math.min(1, inputChannel[i]));
-                                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                                }
-                                this.port.postMessage(pcm16);
-                            }
-                            return true;
-                        }
-                    }
-                    registerProcessor('voice-processor', VoiceProcessor);
-                    `;
-                    const blob = new Blob([workletCode], { type: 'application/javascript' });
-                    const workletUrl = URL.createObjectURL(blob);
-                    await ctx.audioWorklet.addModule(workletUrl);
-                    URL.revokeObjectURL(workletUrl);
-                    isVoiceWorkletLoaded = true;
-                }
-
-                pcmAudioWorkletNode = new AudioWorkletNode(ctx, 'voice-processor');
-                pcmAudioWorkletNode.port.onmessage = (e) => {
-                    if (callState.targetUserId && state.socket && !callState.isMicMuted) {
-                        state.socket.emit('call_audio_chunk', {
-                            receiver_id: callState.targetUserId,
-                            pcm: Array.from(e.data)
-                        });
-                    }
-                };
-
-                pcmAudioSource.connect(pcmAudioWorkletNode);
-                return;
-            } catch (workletErr) {
-                console.warn('AudioWorklet fallback to ScriptProcessor:', workletErr);
-            }
-        }
-
-        // ScriptProcessor Fallback
-        pcmAudioProcessor = ctx.createScriptProcessor(1024, 1, 1);
-        pcmAudioProcessor.onaudioprocess = (e) => {
-            if (callState.targetUserId && state.socket && !callState.isMicMuted) {
-                const inputData = e.inputBuffer.getChannelData(0);
-                const pcm16 = new Int16Array(inputData.length);
-                for (let i = 0; i < inputData.length; i++) {
-                    const s = Math.max(-1, Math.min(1, inputData[i]));
-                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-                state.socket.emit('call_audio_chunk', {
-                    receiver_id: callState.targetUserId,
-                    pcm: Array.from(pcm16)
-                });
-            }
-        };
-
-        pcmAudioSource.connect(pcmAudioProcessor);
-    } catch (e) {
-        console.warn('startAudioStreamer error:', e);
-    }
+    // 100% Pure Discord WebRTC Opus Voice Engine:
+    // Disabling WebSocket PCM chunking prevents double audio playback & tunnel/underwater echo!
+    return;
 }
+
 
 
 
