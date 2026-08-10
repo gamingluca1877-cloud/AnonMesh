@@ -968,6 +968,12 @@ async function loadContacts() {
         const data = await response.json();
         state.contacts = data.contacts;
         renderContactsList();
+
+        // Auto select first contact on PC if no chat is open yet
+        if (!state.activeContact && state.contacts && state.contacts.length > 0) {
+            selectContact(state.contacts[0]);
+        }
+
     } catch (err) {
         console.error('Fehler beim Laden der Kontakte:', err);
     }
@@ -1852,12 +1858,20 @@ function unlockCallAudio() {
 
 
 async function startCall(callType) {
-    if (!state.activeContact) return;
+    if (!state.activeContact) {
+        if (state.contacts && state.contacts.length > 0) {
+            selectContact(state.contacts[0]);
+        } else {
+            alert('Bitte wähle einen Kontakt aus der Liste auf der linken Seite aus.');
+            return;
+        }
+    }
 
     // INSTANT 0MS OPEN OF WHATSAPP CALL SCREEN
     unlockCallAudio();
     const activeCallModal = document.getElementById('active-call-modal');
     if (activeCallModal) activeCallModal.classList.remove('hidden');
+
 
     callState.callType = callType;
     callState.targetUserId = state.activeContact.id;
