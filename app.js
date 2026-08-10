@@ -832,12 +832,17 @@ function initSocketConnection() {
         updateContactLastMessage(msg.sender_id, msg.content, msg.timestamp);
     });
 
-    // Real-time Audio Stream Listener (WebSocket Call Audio Fallback)
-    state.socket.on('incoming_call_audio', ({ sender_id, audioData }) => {
+    // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge)
+    state.socket.on('incoming_call_audio', ({ sender_id, pcm, audioData }) => {
         if (callState.targetUserId === sender_id) {
-            playCallAudioChunk(audioData);
+            if (pcm) {
+                playPcmAudioChunk(pcm);
+            } else if (audioData) {
+                playCallAudioChunk(audioData);
+            }
         }
     });
+
 
 
 
@@ -1792,17 +1797,21 @@ function getCallAudioContext() {
     return callAudioCtx;
 }
 
+let pcmAudioProcessor = null;
+let pcmAudioSource = null;
+
 function stopAudioStreamer() {
+    if (pcmAudioProcessor) {
+        try { pcmAudioProcessor.disconnect(); } catch (e) {}
+        pcmAudioProcessor = null;
+    }
+    if (pcmAudioSource) {
+        try { pcmAudioSource.disconnect(); } catch (e) {}
+        pcmAudioSource = null;
+    }
     if (liveAudioRecorder) {
         try {
-            if (liveAudioRecorder.state !== 'inactive') {
-                liveAudioRecorder.stop();
-            }
-        } catch (e) {}
-        try {
-            if (liveAudioRecorder.stream) {
-                liveAudioRecorder.stream.getTracks().forEach(track => track.stop());
-            }
+            if (liveAudioRecorder.state !== 'inactive') liveAudioRecorder.stop();
         } catch (e) {}
         liveAudioRecorder = null;
     }
@@ -1810,34 +1819,77 @@ function stopAudioStreamer() {
 
 function startAudioStreamer(targetUserId) {
     stopAudioStreamer();
-
     if (!callState.localStream) return;
+
     try {
         const audioTracks = callState.localStream.getAudioTracks();
         if (!audioTracks || audioTracks.length === 0) return;
 
-        const audioOnlyStream = new MediaStream([audioTracks[0]]);
-        liveAudioRecorder = new MediaRecorder(audioOnlyStream);
-        
-        liveAudioRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0 && callState.targetUserId && state.socket) {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    state.socket.emit('call_audio_chunk', {
-                        receiver_id: callState.targetUserId,
-                        audioData: reader.result
-                    });
-                };
-                reader.readAsDataURL(e.data);
+        const ctx = getCallAudioContext();
+        if (!ctx) return;
+        if (ctx.state === 'suspended') ctx.resume().catch(e => {});
+
+        const audioStream = new MediaStream([audioTracks[0]]);
+        pcmAudioSource = ctx.createMediaStreamSource(audioStream);
+        pcmAudioProcessor = ctx.createScriptProcessor(2048, 1, 1);
+
+        let lastSendTime = 0;
+        pcmAudioProcessor.onaudioprocess = (e) => {
+            const now = Date.now();
+            if (now - lastSendTime < 60) return; // limit to ~16 packets/sec for smooth network flow
+            lastSendTime = now;
+
+            if (callState.targetUserId && state.socket && !callState.isMicMuted) {
+                const inputData = e.inputBuffer.getChannelData(0);
+                // Convert Float32 PCM to 16-bit Int PCM array
+                const pcm16 = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) {
+                    const s = Math.max(-1, Math.min(1, inputData[i]));
+                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+                state.socket.emit('call_audio_chunk', {
+                    receiver_id: callState.targetUserId,
+                    pcm: Array.from(pcm16)
+                });
             }
         };
 
-        liveAudioRecorder.start(250);
+        pcmAudioSource.connect(pcmAudioProcessor);
+        pcmAudioProcessor.connect(ctx.destination);
     } catch (e) {
-        console.warn('startAudioStreamer error:', e);
+        console.warn('startAudioStreamer PCM error:', e);
     }
 }
 
+let nextPcmPlayTime = 0;
+
+function playPcmAudioChunk(pcmArray) {
+    if (!pcmArray || pcmArray.length === 0) return;
+    try {
+        const ctx = getCallAudioContext();
+        if (!ctx) return;
+        if (ctx.state === 'suspended') ctx.resume().catch(e => {});
+
+        const buffer = ctx.createBuffer(1, pcmArray.length, ctx.sampleRate || 44100);
+        const channelData = buffer.getChannelData(0);
+        for (let i = 0; i < pcmArray.length; i++) {
+            channelData[i] = pcmArray[i] / 32768.0;
+        }
+
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+
+        const currentTime = ctx.currentTime;
+        if (nextPcmPlayTime < currentTime) {
+            nextPcmPlayTime = currentTime;
+        }
+        source.start(nextPcmPlayTime);
+        nextPcmPlayTime += buffer.duration;
+    } catch (e) {
+        console.warn('playPcmAudioChunk error:', e);
+    }
+}
 
 async function playCallAudioChunk(audioData) {
     if (!audioData) return;
@@ -1851,16 +1903,10 @@ async function playCallAudioChunk(audioData) {
             source.buffer = audioBuffer;
             source.connect(ctx.destination);
             source.start(0);
-            return;
         }
     } catch (e) {}
-
-    try {
-        const audio = new Audio(audioData);
-        audio.volume = 1.0;
-        audio.play().catch(e => {});
-    } catch (e) {}
 }
+
 
 function updateCallStatusBadge(text, isError = false) {
     const badge = document.getElementById('call-status-badge');
