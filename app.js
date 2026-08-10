@@ -1840,6 +1840,7 @@ window.addEventListener('touchstart', () => {
 }, { passive: true });
 
 
+let isVoiceWorkletLoaded = false;
 let pcmAudioWorkletNode = null;
 let pcmAudioProcessor = null;
 let pcmAudioSource = null;
@@ -1885,28 +1886,31 @@ async function startAudioStreamer(targetUserId) {
         // Try Modern High-Performance AudioWorkletNode first (zero deprecation warning & dedicated audio thread)
         if (ctx.audioWorklet && typeof AudioWorkletNode !== 'undefined') {
             try {
-                const workletCode = `
-                class VoiceProcessor extends AudioWorkletProcessor {
-                    process(inputs, outputs, parameters) {
-                        const input = inputs[0];
-                        if (input && input[0]) {
-                            const inputChannel = input[0];
-                            const pcm16 = new Int16Array(inputChannel.length);
-                            for (let i = 0; i < inputChannel.length; i++) {
-                                const s = Math.max(-1, Math.min(1, inputChannel[i]));
-                                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                if (!isVoiceWorkletLoaded) {
+                    const workletCode = `
+                    class VoiceProcessor extends AudioWorkletProcessor {
+                        process(inputs, outputs, parameters) {
+                            const input = inputs[0];
+                            if (input && input[0]) {
+                                const inputChannel = input[0];
+                                const pcm16 = new Int16Array(inputChannel.length);
+                                for (let i = 0; i < inputChannel.length; i++) {
+                                    const s = Math.max(-1, Math.min(1, inputChannel[i]));
+                                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                }
+                                this.port.postMessage(pcm16);
                             }
-                            this.port.postMessage(pcm16);
+                            return true;
                         }
-                        return true;
                     }
+                    registerProcessor('voice-processor', VoiceProcessor);
+                    `;
+                    const blob = new Blob([workletCode], { type: 'application/javascript' });
+                    const workletUrl = URL.createObjectURL(blob);
+                    await ctx.audioWorklet.addModule(workletUrl);
+                    URL.revokeObjectURL(workletUrl);
+                    isVoiceWorkletLoaded = true;
                 }
-                registerProcessor('voice-processor', VoiceProcessor);
-                `;
-                const blob = new Blob([workletCode], { type: 'application/javascript' });
-                const workletUrl = URL.createObjectURL(blob);
-                await ctx.audioWorklet.addModule(workletUrl);
-                URL.revokeObjectURL(workletUrl);
 
                 pcmAudioWorkletNode = new AudioWorkletNode(ctx, 'voice-processor');
                 pcmAudioWorkletNode.port.onmessage = (e) => {
@@ -1928,6 +1932,7 @@ async function startAudioStreamer(targetUserId) {
                 console.warn('AudioWorklet fallback to ScriptProcessor:', workletErr);
             }
         }
+
 
         // Legacy Fallback ScriptProcessor
         pcmAudioProcessor = ctx.createScriptProcessor(1024, 1, 1);
