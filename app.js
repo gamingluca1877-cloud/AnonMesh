@@ -894,7 +894,9 @@ function initSocketConnection() {
     state.socket.on('incoming_call', ({ caller_id, caller_username, offer, call_type }) => {
         callState.pendingOffer = offer;
         callState.pendingCallerId = caller_id;
+        callState.targetUserId = caller_id;
         callState.callType = call_type;
+
 
         document.getElementById('incoming-caller-name').textContent = caller_username;
         document.getElementById('incoming-call-type').textContent = call_type === 'video' ? 'Eingehender HD Videoanruf...' : 'Eingehender HD Sprachanruf...';
@@ -1951,16 +1953,15 @@ async function startCall(callType) {
 
 async function acceptIncomingCall() {
     stopRingtone();
-    document.getElementById('incoming-call-modal').classList.add('hidden');
+    const incomingModal = document.getElementById('incoming-call-modal');
+    if (incomingModal) incomingModal.classList.add('hidden');
     if (!callState.pendingOffer || !callState.pendingCallerId) return;
 
+    callState.targetUserId = callState.pendingCallerId;
+
     // Pre-unlock audio element inside user click gesture for browser autoplay policies
-    let remoteAudio = document.getElementById('remote-audio');
-    if (remoteAudio) {
-        remoteAudio.muted = false;
-        remoteAudio.volume = 1.0;
-        remoteAudio.play().catch(e => {});
-    }
+    unlockCallAudio();
+
 
     // Populate WhatsApp Call Header Info
     const caller = state.contacts.find(c => c.id === callState.targetUserId);
