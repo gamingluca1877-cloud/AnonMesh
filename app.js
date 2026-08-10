@@ -781,11 +781,14 @@ function initSocketConnection() {
 
     // Real-time Message Sent Callback (Confirmation)
     state.socket.on('message_sent', (msg) => {
-        if (state.activeContact && msg.receiver_id === state.activeContact.id) {
-            appendMessageBubble(msg, true);
+        // Update temp bubble id to server DB id to prevent any duplication
+        const tempBubble = document.querySelector('.message-row[data-msg-id^="temp_"]');
+        if (tempBubble) {
+            tempBubble.setAttribute('data-msg-id', msg.id);
         }
         updateContactLastMessage(msg.receiver_id, msg.content, msg.timestamp);
     });
+
 
     // Incoming Private Message
     state.socket.on('private_message', async (msg) => {
