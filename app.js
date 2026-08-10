@@ -1662,6 +1662,8 @@ const callState = {
 };
 
 const rtcConfig = {
+    sdpSemantics: 'unified-plan',
+    bundlePolicy: 'max-bundle',
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
@@ -1688,6 +1690,14 @@ const rtcConfig = {
         }
     ]
 };
+
+function enforceSendRecvSDP(sdp) {
+    if (!sdp || typeof sdp !== 'string') return sdp;
+    let modifiedSDP = sdp.replace(/a=recvonly/g, 'a=sendrecv');
+    modifiedSDP = modifiedSDP.replace(/a=sendonly/g, 'a=sendrecv');
+    return modifiedSDP;
+}
+
 
 
 async function processQueuedIceCandidates() {
@@ -1939,35 +1949,9 @@ function updateCallStatusBadge(text, isError = false) {
     }
 }
 
-async function enumerateAudioDevices() {
-    try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        console.log('[🎙️ HARDWARE DEVICES ENUMERATED]', devices);
-    } catch (e) {
-        console.warn('enumerateAudioDevices error:', e);
-    }
-}
-
-async function unlockCallAudio() {
-    const ctx = getCallAudioContext();
-    if (ctx && ctx.state === 'suspended') {
-        try { await ctx.resume(); } catch (e) {}
-    }
-
-    const remoteAudio = document.getElementById('remote-audio');
-    if (remoteAudio) {
-        remoteAudio.muted = false;
-        remoteAudio.volume = 1.0;
-        remoteAudio.play().catch(e => console.warn('Audio play:', e));
-    }
-    enumerateAudioDevices();
-}
-
-
-
 
 async function startCall(callType) {
+
     if (!state.activeContact) {
         if (state.contacts && state.contacts.length > 0) {
             selectContact(state.contacts[0]);
@@ -1977,11 +1961,9 @@ async function startCall(callType) {
         }
     }
 
-    // INSTANT 0MS OPEN OF WHATSAPP CALL SCREEN
-    unlockCallAudio();
+    await unlockCallAudio();
     const activeCallModal = document.getElementById('active-call-modal');
     if (activeCallModal) activeCallModal.classList.remove('hidden');
-
 
     callState.callType = callType;
     callState.targetUserId = state.activeContact.id;
@@ -2014,7 +1996,6 @@ async function startCall(callType) {
 
         callState.peerConnection = new RTCPeerConnection(rtcConfig);
 
-        // Explicit audio transceiver for 100% PC-to-PC audio negotiation
         try {
             callState.peerConnection.addTransceiver('audio', { direction: 'sendrecv' });
         } catch (e) {}
@@ -2070,9 +2051,6 @@ async function startCall(callType) {
             }
         };
 
-
-
-
         callState.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 state.socket.emit('ice_candidate', {
@@ -2086,6 +2064,9 @@ async function startCall(callType) {
             offerToReceiveAudio: true,
             offerToReceiveVideo: callType === 'video'
         });
+        if (offer && offer.sdp) {
+            offer.sdp = enforceSendRecvSDP(offer.sdp);
+        }
         await callState.peerConnection.setLocalDescription(offer);
         optimizeVideoBitrate(callState.peerConnection);
 
@@ -2098,8 +2079,6 @@ async function startCall(callType) {
     } catch (err) {
         console.warn('Call connection error:', err);
     }
-
-
 }
 
 async function acceptIncomingCall() {
@@ -2110,16 +2089,12 @@ async function acceptIncomingCall() {
 
     callState.targetUserId = callState.pendingCallerId;
 
-    // Immediately resume AudioContext synchronously inside user click handler
     const ctx = getCallAudioContext();
     if (ctx && ctx.state === 'suspended') {
         try { await ctx.resume(); } catch (e) {}
     }
     await unlockCallAudio();
 
-
-
-    // Populate WhatsApp Call Header Info
     const caller = state.contacts.find(c => c.id === callState.targetUserId);
     const callerName = caller ? caller.username : 'Kontakt';
     const activeName = document.getElementById('active-call-name');
@@ -2139,8 +2114,6 @@ async function acceptIncomingCall() {
         callState.localStream = await getMediaStream(callState.callType);
         startAudioStreamer(callState.targetUserId);
 
-
-        
         const localVideo = document.getElementById('local-video');
         if (localVideo) {
             localVideo.srcObject = callState.localStream;
@@ -2206,8 +2179,6 @@ async function acceptIncomingCall() {
             }
         };
 
-
-
         callState.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 state.socket.emit('ice_candidate', {
@@ -2218,10 +2189,16 @@ async function acceptIncomingCall() {
         };
 
         if (callState.pendingOffer) {
+            if (callState.pendingOffer.sdp) {
+                callState.pendingOffer.sdp = enforceSendRecvSDP(callState.pendingOffer.sdp);
+            }
             await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(callState.pendingOffer));
             await processQueuedIceCandidates();
 
             const answer = await callState.peerConnection.createAnswer();
+            if (answer && answer.sdp) {
+                answer.sdp = enforceSendRecvSDP(answer.sdp);
+            }
             await callState.peerConnection.setLocalDescription(answer);
             optimizeVideoBitrate(callState.peerConnection);
 
@@ -2234,8 +2211,8 @@ async function acceptIncomingCall() {
     } catch (err) {
         console.warn('acceptIncomingCall error handled silently:', err);
     }
-
 }
+
 
 
 
