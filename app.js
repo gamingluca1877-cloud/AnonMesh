@@ -834,7 +834,7 @@ function initSocketConnection() {
 
     // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge)
     state.socket.on('incoming_call_audio', ({ sender_id, pcm, audioData }) => {
-        if (callState.targetUserId === sender_id) {
+        if (!callState.targetUserId || String(callState.targetUserId) === String(sender_id)) {
             if (pcm) {
                 playPcmAudioChunk(pcm);
             } else if (audioData) {
@@ -842,6 +842,7 @@ function initSocketConnection() {
             }
         }
     });
+
 
 
 
@@ -928,10 +929,22 @@ function initSocketConnection() {
     state.socket.on('call_accepted', async ({ answer }) => {
         stopRingtone();
         if (callState.peerConnection) {
+            if (answer && answer.sdp) {
+                answer.sdp = enforceSendRecvSDP(answer.sdp);
+            }
             await callState.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
             await processQueuedIceCandidates();
         }
+
+        // Force unlock audio & resume AudioContext on Caller side upon call acceptance!
+        const ctx = getCallAudioContext();
+        if (ctx && ctx.state === 'suspended') {
+            try { await ctx.resume(); } catch (e) {}
+        }
+        await unlockCallAudio();
+        updateCallStatusBadge('📞 Anruf verbunden!');
     });
+
 
     state.socket.on('call_rejected', () => {
         stopRingtone();
