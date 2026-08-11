@@ -849,24 +849,37 @@ function initSocketConnection() {
 
 
 
-    // Panic Wipe Real-time Broadcast Event Listener
-    state.socket.on('chat_wiped', () => {
+    // Panic Wipe Real-time Broadcast Event Listener (Purges messages for BOTH participants)
+    state.socket.on('chat_wiped', ({ user_id }) => {
         if (state.currentUser && state.currentUser.id) {
-            localStorage.removeItem(`anonmesh_vault_messages_${state.currentUser.id}`);
+            const vaultKey = `anonmesh_vault_messages_${state.currentUser.id}`;
+            try {
+                let vault = JSON.parse(localStorage.getItem(vaultKey) || '[]');
+                const wipedIdNum = Number(user_id);
+                vault = vault.filter(m => Number(m.sender_id) !== wipedIdNum && Number(m.receiver_id) !== wipedIdNum);
+                localStorage.setItem(vaultKey, JSON.stringify(vault));
+            } catch (e) {
+                localStorage.removeItem(vaultKey);
+            }
         }
-        const messagesList = document.getElementById('messages-list');
-        if (messagesList) {
-            messagesList.innerHTML = '<div class="msg-placeholder" style="text-align: center; color: #ef4444; font-size: 0.9rem; font-weight: 700; padding: 20px;">🚨 Sämtliche Nachrichten wurden unwiderruflich gelöscht & anonymisiert!</div>';
+        if (state.activeContact && (Number(state.activeContact.id) === Number(user_id) || Number(state.currentUser.id) === Number(user_id))) {
+            const messagesList = document.getElementById('messages-list');
+            if (messagesList) {
+                messagesList.innerHTML = '<div class="msg-placeholder" style="text-align: center; color: #ef4444; font-size: 0.9rem; font-weight: 700; padding: 20px;">🚨 Sämtliche Nachrichten wurden unwiderruflich gelöscht & anonymisiert!</div>';
+            }
         }
         if (state.contacts) {
             state.contacts.forEach(c => {
-                c.last_message = null;
-                c.last_message_time = null;
-                c.unread_count = 0;
+                if (Number(c.id) === Number(user_id) || Number(state.currentUser.id) === Number(user_id)) {
+                    c.last_message = null;
+                    c.last_message_time = null;
+                    c.unread_count = 0;
+                }
             });
             renderContactsList();
         }
     });
+
 
     // Contact Online/Offline Status Change
 

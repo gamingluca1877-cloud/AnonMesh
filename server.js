@@ -703,12 +703,13 @@ app.delete('/api/messages/panic-wipe', authenticateToken, (req, res) => {
         // Save updated backup vault without wiped messages
         saveUsersBackup();
 
-        // Notify user sockets
-        io.to(`user_${userId}`).emit('chat_wiped', { user_id: userId });
+        // Broadcast real-time wipe signal to both participants (sender & receiver)
+        io.emit('chat_wiped', { user_id: userId });
 
         res.json({ message: '🚨 Sämtliche Chatverläufe wurden unwiderruflich gelöscht und überschrieben!' });
     });
 });
+
 
 
 // ----------------------------------------------------
