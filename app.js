@@ -1494,11 +1494,13 @@ document.addEventListener('click', (e) => {
 // ----------------------------------------------------
 function openSettingsModal() {
     const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+
     const input = document.getElementById('settings-username');
     const feedback = document.getElementById('settings-feedback');
 
     if (state.currentUser) {
-        input.value = state.currentUser.username;
+        if (input) input.value = state.currentUser.username;
         const settingsPreview = document.getElementById('settings-avatar-preview');
         if (settingsPreview) {
             if (state.currentUser.avatar_url) {
@@ -1509,10 +1511,11 @@ function openSettingsModal() {
             }
         }
     }
-    feedback.className = 'alert hidden';
+    if (feedback) feedback.className = 'alert hidden';
     modal.classList.remove('hidden');
-    input.focus();
+    if (input) input.focus();
 }
+
 
 
 function closeSettingsModal() {
