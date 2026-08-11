@@ -781,6 +781,7 @@ function initSocketConnection() {
 
     // Real-time Message Sent Callback (Confirmation)
     state.socket.on('message_sent', (msg) => {
+        saveMessageToLocalVault(msg);
         // Update temp bubble id to server DB id to prevent any duplication
         const tempBubble = document.querySelector('.message-row[data-msg-id^="temp_"]');
         if (tempBubble) {
@@ -792,6 +793,7 @@ function initSocketConnection() {
 
     // Incoming Private Message
     state.socket.on('private_message', async (msg) => {
+        saveMessageToLocalVault(msg);
         playMessageSound();
 
         let sender = state.contacts.find(c => c.id === msg.sender_id);
@@ -831,6 +833,7 @@ function initSocketConnection() {
         }
         updateContactLastMessage(msg.sender_id, msg.content, msg.timestamp);
     });
+
 
     // Real-time Audio Stream Listener (WebSocket Dual PCM Voice Bridge - Disabled for 100% Pure WebRTC Discord Voice)
     state.socket.on('incoming_call_audio', ({ sender_id, pcm, audioData }) => {
@@ -1182,12 +1185,59 @@ window.closeMobileChat = closeMobileChat;
 window.addEventListener('popstate', closeMobileChat);
 
 
+function saveMessageToLocalVault(msg) {
+    if (!msg || !state.currentUser) return;
+    try {
+        const vaultKey = `anonmesh_vault_messages_${state.currentUser.id}`;
+        let vault = JSON.parse(localStorage.getItem(vaultKey) || '[]');
+        
+        const exists = vault.some(m => (m.id && msg.id && m.id === msg.id) || (m.timestamp === msg.timestamp && m.sender_id === msg.sender_id && m.receiver_id === msg.receiver_id && m.content === msg.content));
+        
+        if (!exists) {
+            vault.push(msg);
+            localStorage.setItem(vaultKey, JSON.stringify(vault));
+        }
+    } catch (e) {
+        console.warn('saveMessageToLocalVault error:', e);
+    }
+}
+
+function getLocalVaultMessages(contactId) {
+    if (!state.currentUser || !contactId) return [];
+    try {
+        const vaultKey = `anonmesh_vault_messages_${state.currentUser.id}`;
+        const vault = JSON.parse(localStorage.getItem(vaultKey) || '[]');
+        const contactIdNum = Number(contactId);
+        const myIdNum = Number(state.currentUser.id);
+        
+        return vault.filter(m => 
+            (Number(m.sender_id) === myIdNum && Number(m.receiver_id) === contactIdNum) ||
+            (Number(m.sender_id) === contactIdNum && Number(m.receiver_id) === myIdNum)
+        ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    } catch (e) {
+        return [];
+    }
+}
+
 async function loadMessages(contactId) {
     const messagesList = document.getElementById('messages-list');
     if (!messagesList) return;
     messagesList.classList.remove('hidden');
-    messagesList.innerHTML = '<div class="msg-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">Nachrichten werden entschlüsselt...</div>';
 
+    // 1. Instant Load from LocalStorage Vault (0ms delay - all past chat history appears immediately)
+    const localMsgs = getLocalVaultMessages(contactId);
+    messagesList.innerHTML = '';
+    if (localMsgs.length > 0) {
+        for (const msg of localMsgs) {
+            const isOutgoing = msg.sender_id === state.currentUser.id;
+            await appendMessageBubble(msg, isOutgoing);
+        }
+        scrollToBottom();
+    } else {
+        messagesList.innerHTML = '<div class="msg-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">Nachrichten werden entschlüsselt...</div>';
+    }
+
+    // 2. Fetch and Merge Server Database Messages
     try {
         const response = await fetch(`/api/messages/${contactId}`, {
             headers: { 'Authorization': `Bearer ${state.token}` }
@@ -1196,23 +1246,24 @@ async function loadMessages(contactId) {
         if (!response.ok) return;
 
         const data = await response.json();
-        messagesList.innerHTML = '';
+        if (data.messages && data.messages.length > 0) {
+            data.messages.forEach(m => saveMessageToLocalVault(m));
 
-        if (data.messages.length === 0) {
+            const mergedMsgs = getLocalVaultMessages(contactId);
+            messagesList.innerHTML = '';
+            for (const msg of mergedMsgs) {
+                const isOutgoing = msg.sender_id === state.currentUser.id;
+                await appendMessageBubble(msg, isOutgoing);
+            }
+            scrollToBottom();
+        } else if (localMsgs.length === 0) {
             messagesList.innerHTML = '<div class="msg-placeholder" style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 20px;">Noch keine Nachrichten. Schreibe die erste ende-zu-ende verschlüsselte Nachricht!</div>';
-            return;
         }
-
-        for (const msg of data.messages) {
-            const isOutgoing = msg.sender_id === state.currentUser.id;
-            await appendMessageBubble(msg, isOutgoing);
-        }
-
-        scrollToBottom();
     } catch (err) {
         console.error('Fehler beim Laden des Nachrichtenverlaufs:', err);
     }
 }
+
 
 async function appendMessageBubble(msg, isOutgoing) {
     const messagesList = document.getElementById('messages-list');
@@ -1343,7 +1394,9 @@ async function sendMessage() {
     };
 
     await appendMessageBubble(localMsg, true);
+    saveMessageToLocalVault(localMsg);
     scrollToBottom();
+
     updateContactLastMessage(state.activeContact.id, encryptedContent, localMsg.timestamp);
 
     // Send via socket
