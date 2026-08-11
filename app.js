@@ -849,7 +849,27 @@ function initSocketConnection() {
 
 
 
+    // Panic Wipe Real-time Broadcast Event Listener
+    state.socket.on('chat_wiped', () => {
+        if (state.currentUser && state.currentUser.id) {
+            localStorage.removeItem(`anonmesh_vault_messages_${state.currentUser.id}`);
+        }
+        const messagesList = document.getElementById('messages-list');
+        if (messagesList) {
+            messagesList.innerHTML = '<div class="msg-placeholder" style="text-align: center; color: #ef4444; font-size: 0.9rem; font-weight: 700; padding: 20px;">🚨 Sämtliche Nachrichten wurden unwiderruflich gelöscht & anonymisiert!</div>';
+        }
+        if (state.contacts) {
+            state.contacts.forEach(c => {
+                c.last_message = null;
+                c.last_message_time = null;
+                c.unread_count = 0;
+            });
+            renderContactsList();
+        }
+    });
+
     // Contact Online/Offline Status Change
+
     state.socket.on('user_status', ({ user_id, is_online }) => {
         const contact = state.contacts.find(c => c.id === user_id);
         if (contact) {
@@ -1498,6 +1518,64 @@ function openSettingsModal() {
 function closeSettingsModal() {
     document.getElementById('settings-modal').classList.add('hidden');
 }
+
+async function triggerPanicWipe() {
+    const confirmWipe = confirm(
+        "🚨 ACHTUNG / WARNUNG:\n\nMöchtest du wirklich deinen GESAMTEN Chatverlauf unwiderruflich löschen?\n\n- Alle gesendeten & empfangenen Nachrichten werden gelöscht.\n- Alle lokalen Browser-Speicher werden geleert.\n- Alle Datenbank-Einträge auf dem Server werden überschrieben.\n\nDieser Vorgang kann NICHT rückgängig gemacht werden!"
+    );
+
+    if (!confirmWipe) return;
+
+    try {
+        // 1. Clear LocalStorage Vault for current user
+        if (state.currentUser && state.currentUser.id) {
+            const vaultKey = `anonmesh_vault_messages_${state.currentUser.id}`;
+            localStorage.removeItem(vaultKey);
+        }
+
+        // Clear any leftover local caches
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('anonmesh_vault_messages_')) {
+                localStorage.removeItem(key);
+            }
+        }
+
+        // 2. Call Panic Wipe API on server
+        const response = await fetch('/api/messages/panic-wipe', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${state.token}`
+            }
+        });
+
+        const data = await response.json();
+
+        // 3. Clear DOM & Reset UI state
+        const messagesList = document.getElementById('messages-list');
+        if (messagesList) {
+            messagesList.innerHTML = '<div class="msg-placeholder" style="text-align: center; color: #ef4444; font-size: 0.9rem; font-weight: 700; padding: 20px;">🚨 Sämtliche Nachrichten wurden unwiderruflich gelöscht & anonymisiert!</div>';
+        }
+
+        // Clear contacts last_message previews
+        if (state.contacts && state.contacts.length > 0) {
+            state.contacts.forEach(c => {
+                c.last_message = null;
+                c.last_message_time = null;
+                c.unread_count = 0;
+            });
+            renderContactsList();
+        }
+
+        closeSettingsModal();
+        alert('🚨 PANIK-LÖSCHUNG ERFOLGREICH: Sämtliche Chatverläufe wurden unwiderruflich aus dem Browser und vom Server gelöscht!');
+
+    } catch (err) {
+        console.error('Panic wipe error:', err);
+        alert('Fehler beim Ausführen der Panik-Löschung.');
+    }
+}
+
 
 async function handleUpdateUsername(e) {
     e.preventDefault();
@@ -2643,6 +2721,8 @@ window.closeDiscordAudioSettings = closeDiscordAudioSettings;
 window.changeAudioInputDevice = changeAudioInputDevice;
 window.changeAudioOutputDevice = changeAudioOutputDevice;
 window.playTestAudio = playTestAudio;
+window.triggerPanicWipe = triggerPanicWipe;
+
 
 
 

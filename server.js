@@ -689,6 +689,28 @@ app.get('/api/messages/:contactId', authenticateToken, (req, res) => {
     });
 });
 
+// 6b. Panic Wipe: Delete All User Messages & Purge Backup
+app.delete('/api/messages/panic-wipe', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+
+    const sql = `DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?`;
+    db.run(sql, [userId, userId], function(err) {
+        if (err) {
+            console.error('Panic wipe error:', err);
+            return res.status(500).json({ error: 'Fehler beim Ausführen des Panik-Löschvorgangs.' });
+        }
+
+        // Save updated backup vault without wiped messages
+        saveUsersBackup();
+
+        // Notify user sockets
+        io.to(`user_${userId}`).emit('chat_wiped', { user_id: userId });
+
+        res.json({ message: '🚨 Sämtliche Chatverläufe wurden unwiderruflich gelöscht und überschrieben!' });
+    });
+});
+
+
 // ----------------------------------------------------
 // Real-time WebSocket Logic (Socket.io)
 // ----------------------------------------------------
