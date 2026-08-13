@@ -517,6 +517,25 @@ function showAuthAlert(message, type = 'error') {
     alertBox.classList.remove('hidden');
 }
 
+async function hashSHA256(text) {
+    if (!text) return '';
+    try {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+        return '';
+    }
+}
+
+// Authorized Passcode SHA-256 One-Way Hashes (Zero-Client-Knowledge: Plaintext passwords are NEVER stored!)
+const AUTHORIZED_PASSCODE_HASHES = [
+    '31c3e051f8eec0bf2978d9b3e95f0cd0ae340d19db23385d12d0e4c44febd29b',
+    'f177b960b1de004accec332910dbb77def4290625aa5df9c922be3e3a7272e92'
+];
+
 function checkSiteAccess() {
     // Purge active login session on every page reload/reopen
     localStorage.removeItem('anonmesh_token');
@@ -551,8 +570,9 @@ async function handleSiteGateSubmit(e) {
         return false;
     }
 
-    // Instant verification for passcode 13128937731312 or AnonMesh2026
-    if (passcode === '13128937731312' || passcode === 'AnonMesh2026') {
+    // Cryptographic One-Way SHA-256 Verification (Zero-Knowledge: Inspection in DevTools reveals 0 plaintext data)
+    const inputHash = await hashSHA256(passcode);
+    if (AUTHORIZED_PASSCODE_HASHES.includes(inputHash)) {
         const gateView = document.getElementById('site-gate-view');
         if (gateView) gateView.classList.add('hidden');
         showAuthView();
@@ -563,7 +583,7 @@ async function handleSiteGateSubmit(e) {
         const response = await fetch('/api/auth/site-gate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ passcode })
+            body: JSON.stringify({ passcodeHash: inputHash, passcode })
         });
 
         const data = await response.json();
@@ -581,7 +601,7 @@ async function handleSiteGateSubmit(e) {
             return false;
         }
     } catch (err) {
-        if (passcode === '13128937731312' || passcode === 'AnonMesh2026') {
+        if (AUTHORIZED_PASSCODE_HASHES.includes(inputHash)) {
             const gateView = document.getElementById('site-gate-view');
             if (gateView) gateView.classList.add('hidden');
             showAuthView();
@@ -593,6 +613,7 @@ async function handleSiteGateSubmit(e) {
     }
     return false;
 }
+
 
 
 

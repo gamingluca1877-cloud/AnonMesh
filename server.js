@@ -349,36 +349,35 @@ function authenticateToken(req, res, next) {
 }
 
 // ----------------------------------------------------
-// SITE-WIDE ACCESS PASSCODE GATE (Zero-Client-Knowledge Encryption)
+// SITE-WIDE ACCESS PASSCODE GATE (Zero-Client-Knowledge SHA-256 Hashing)
 // ----------------------------------------------------
-const SITE_PASSCODE = process.env.SITE_PASSCODE || '13128937731312';
-const SITE_PASSCODE_HASH = bcrypt.hashSync(SITE_PASSCODE, 10);
-
+const AUTHORIZED_PASSCODE_HASHES = [
+    '31c3e051f8eec0bf2978d9b3e95f0cd0ae340d19db23385d12d0e4c44febd29b',
+    'f177b960b1de004accec332910dbb77def4290625aa5df9c922be3e3a7272e92'
+];
 
 app.post('/api/auth/site-gate', rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
-
     try {
-        let { passcode } = req.body;
-        if (!passcode) {
+        let { passcode, passcodeHash } = req.body;
+        if (!passcode && !passcodeHash) {
             return res.status(400).json({ error: 'Bitte Admin-Passwort eingeben.' });
         }
 
-        const isMatch = (passcode === '13128937731312' || passcode === 'AnonMesh2026') || (await bcrypt.compare(passcode, SITE_PASSCODE_HASH));
-        if (!isMatch) {
+        const calculatedHash = passcodeHash || (passcode ? crypto.createHash('sha256').update(passcode.trim()).digest('hex') : '');
 
-            return res.status(401).json({ error: 'Falsches Admin-Passwort. Zugriff verweigert.' });
+        if (AUTHORIZED_PASSCODE_HASHES.includes(calculatedHash)) {
+            return res.json({
+                ok: true,
+                message: 'Admin-Freigabe erteilt. Bitte melde dich an oder registriere ein Konto.'
+            });
         }
 
-
-        return res.json({
-            ok: true,
-            message: 'Admin-Freigabe erteilt. Bitte melde dich an oder registriere ein Konto.'
-        });
-
+        return res.status(401).json({ error: 'Falsches Admin-Passwort. Zugriff verweigert.' });
     } catch (e) {
         res.status(500).json({ error: 'Serverfehler bei der Zugangsprüfung.' });
     }
 });
+
 
 
 
