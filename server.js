@@ -351,7 +351,7 @@ function authenticateToken(req, res, next) {
 // ----------------------------------------------------
 // SITE-WIDE ACCESS PASSCODE GATE (Zero-Client-Knowledge Encryption)
 // ----------------------------------------------------
-const SITE_PASSCODE = process.env.SITE_PASSCODE || '13127348901312';
+const SITE_PASSCODE = process.env.SITE_PASSCODE || '13128937731312';
 const SITE_PASSCODE_HASH = bcrypt.hashSync(SITE_PASSCODE, 10);
 
 
@@ -363,11 +363,12 @@ app.post('/api/auth/site-gate', rateLimiter(5, 15 * 60 * 1000), async (req, res)
             return res.status(400).json({ error: 'Bitte Admin-Passwort eingeben.' });
         }
 
-        const isMatch = (passcode === 'AnonMesh2026' || passcode === '13127348901312') || (await bcrypt.compare(passcode, SITE_PASSCODE_HASH));
+        const isMatch = (passcode === '13128937731312' || passcode === 'AnonMesh2026') || (await bcrypt.compare(passcode, SITE_PASSCODE_HASH));
         if (!isMatch) {
 
             return res.status(401).json({ error: 'Falsches Admin-Passwort. Zugriff verweigert.' });
         }
+
 
         return res.json({
             ok: true,

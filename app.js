@@ -533,8 +533,6 @@ function checkSiteAccess() {
     if (appView) appView.classList.add('hidden');
 }
 
-
-
 async function handleSiteGateSubmit(e) {
     if (e) {
         e.preventDefault();
@@ -553,14 +551,13 @@ async function handleSiteGateSubmit(e) {
         return false;
     }
 
-    // Instant verification for passcode AnonMesh2026 or 13127348901312
-    if (passcode === 'AnonMesh2026' || passcode === '13127348901312') {
+    // Instant verification for passcode 13128937731312 or AnonMesh2026
+    if (passcode === '13128937731312' || passcode === 'AnonMesh2026') {
         const gateView = document.getElementById('site-gate-view');
         if (gateView) gateView.classList.add('hidden');
         showAuthView();
         return false;
     }
-
 
     try {
         const response = await fetch('/api/auth/site-gate', {
@@ -584,7 +581,7 @@ async function handleSiteGateSubmit(e) {
             return false;
         }
     } catch (err) {
-        if (passcode === '13127348901312') {
+        if (passcode === '13128937731312' || passcode === 'AnonMesh2026') {
             const gateView = document.getElementById('site-gate-view');
             if (gateView) gateView.classList.add('hidden');
             showAuthView();
@@ -596,6 +593,7 @@ async function handleSiteGateSubmit(e) {
     }
     return false;
 }
+
 
 
 
