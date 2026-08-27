@@ -150,6 +150,19 @@ db.serialize(() => {
     `);
     db.run("ALTER TABLE shared_links ADD COLUMN category TEXT DEFAULT 'DDOS'", () => {});
 
+    // 5. Shared Folders Table
+    db.run(`
+        CREATE TABLE IF NOT EXISTS shared_folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            created_by INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `, () => {
+        db.run(`INSERT OR IGNORE INTO shared_folders (name) VALUES ('DDOS'), ('DOXEN')`);
+    });
+
+
 
 
     // Restore registered accounts & seed Anonym1 and Anonym2
@@ -226,6 +239,7 @@ function decryptData(encryptedStr) {
 }
 
 function saveUsersBackup() {
+
     db.all(`SELECT id, email, username, password_hash, avatar_color, avatar_url, created_at FROM users`, [], (err, users) => {
         if (err || !users) return;
         db.all(`SELECT id, user_id, contact_id, created_at FROM contacts`, [], (err, contacts) => {
@@ -233,28 +247,30 @@ function saveUsersBackup() {
             db.all(`SELECT id, sender_id, receiver_id, content, timestamp, is_read FROM messages`, [], (err, messages) => {
                 if (err || !messages) return;
                 db.all(`SELECT id, user_id, title, url, category, created_at FROM shared_links`, [], (err, links) => {
+                    db.all(`SELECT id, name, created_by, created_at FROM shared_folders`, [], (err, folders) => {
 
+                        const backupObj = {
+                            users: users || [],
+                            contacts: contacts || [],
+                            messages: messages || [],
+                            shared_links: links || [],
+                            shared_folders: folders || []
+                        };
 
-                    const backupObj = {
-                        users: users || [],
-                        contacts: contacts || [],
-                        messages: messages || [],
-                        shared_links: links || []
-                    };
+                        try {
+                            const jsonStr = JSON.stringify(backupObj, null, 2);
+                            const encryptedPayload = encryptData(jsonStr);
+                            fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
 
-                    try {
-                        const jsonStr = JSON.stringify(backupObj, null, 2);
-                        const encryptedPayload = encryptData(jsonStr);
-                        fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
-
-                        // Clean up old backup files
-                        const oldUserEnc = path.join(__dirname, 'users_backup.enc');
-                        if (fs.existsSync(oldUserEnc)) fs.unlinkSync(oldUserEnc);
-                        const oldUserJson = path.join(__dirname, 'users_backup.json');
-                        if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
-                    } catch (e) {
-                        console.error('Error writing encrypted db backup:', e.message);
-                    }
+                            // Clean up old backup files
+                            const oldUserEnc = path.join(__dirname, 'users_backup.enc');
+                            if (fs.existsSync(oldUserEnc)) fs.unlinkSync(oldUserEnc);
+                            const oldUserJson = path.join(__dirname, 'users_backup.json');
+                            if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
+                        } catch (e) {
+                            console.error('Error writing encrypted db backup:', e.message);
+                        }
+                    });
                 });
             });
         });
@@ -306,12 +322,16 @@ function restoreUsersFromBackup() {
                 });
             }
 
+            // 5. Restore Shared Folders
+            if (Array.isArray(backupObj.shared_folders) && backupObj.shared_folders.length > 0) {
+                const insertFolder = `INSERT OR IGNORE INTO shared_folders (id, name, created_by, created_at) VALUES (?, ?, ?, ?)`;
+                backupObj.shared_folders.forEach(f => {
+                    db.run(insertFolder, [f.id, f.name, f.created_by, f.created_at || new Date().toISOString()]);
+                });
+            }
 
-            console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, ${backupObj.messages?.length || 0} messages, and ${backupObj.shared_links?.length || 0} shared links from AES-256-GCM backup!`);
+            console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, ${backupObj.messages?.length || 0} messages, ${backupObj.shared_links?.length || 0} links, and ${backupObj.shared_folders?.length || 0} folders from AES-256-GCM backup!`);
         });
-
-
-
     } catch (e) {
         console.error('Error restoring encrypted db backup:', e.message);
     }
@@ -759,6 +779,37 @@ app.get('/api/links', authenticateToken, (req, res) => {
     });
 });
 
+// GET /api/link-folders - Fetch all folder categories
+app.get('/api/link-folders', authenticateToken, (req, res) => {
+    db.all("SELECT * FROM shared_folders ORDER BY id ASC", [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: 'Fehler beim Laden der Ordner.' });
+        }
+        res.json(rows || []);
+    });
+});
+
+// POST /api/link-folders - Create a new folder category
+app.post('/api/link-folders', authenticateToken, (req, res) => {
+    let { name } = req.body;
+    if (!name || !name.trim()) {
+        return res.status(400).json({ error: 'Ordnername erforderlich.' });
+    }
+
+    const folderName = name.trim().toUpperCase();
+
+    db.run("INSERT OR IGNORE INTO shared_folders (name, created_by) VALUES (?, ?)", [folderName, req.user.id], function(err) {
+        if (err) {
+            return res.status(500).json({ error: 'Fehler beim Erstellen des Ordners.' });
+        }
+
+        const newFolder = { id: this.lastID, name: folderName, created_by: req.user.id };
+        saveUsersBackup();
+        io.emit('folder_added', newFolder);
+        res.json(newFolder);
+    });
+});
+
 // POST /api/links - Add a new shared link
 app.post('/api/links', authenticateToken, (req, res) => {
     let { title, url, category } = req.body;
@@ -768,7 +819,7 @@ app.post('/api/links', authenticateToken, (req, res) => {
 
     title = title.trim();
     url = url.trim();
-    category = (category && ['DDOS', 'DOXEN'].includes(category.toUpperCase())) ? category.toUpperCase() : 'DDOS';
+    category = (category && category.trim()) ? category.trim().toUpperCase() : 'DDOS';
 
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://' + url;
@@ -796,20 +847,32 @@ app.post('/api/links', authenticateToken, (req, res) => {
     });
 });
 
-
-// DELETE /api/links/:id - Delete a shared link
+// DELETE /api/links/:id - Delete a shared link (Strictly Creator Only!)
 app.delete('/api/links/:id', authenticateToken, (req, res) => {
     const linkId = req.params.id;
-    db.run("DELETE FROM shared_links WHERE id = ?", [linkId], function(err) {
-        if (err) {
-            return res.status(500).json({ error: 'Fehler beim Löschen des Links.' });
+    const userId = req.user.id;
+
+    db.get("SELECT user_id FROM shared_links WHERE id = ?", [linkId], (err, link) => {
+        if (err || !link) {
+            return res.status(404).json({ error: 'Link nicht gefunden.' });
         }
 
-        saveUsersBackup();
-        io.emit('link_deleted', { id: linkId });
-        res.json({ message: 'Link gelöscht.' });
+        if (Number(link.user_id) !== Number(userId)) {
+            return res.status(403).json({ error: 'Nur der Ersteller darf diesen Link löschen.' });
+        }
+
+        db.run("DELETE FROM shared_links WHERE id = ?", [linkId], function(err) {
+            if (err) {
+                return res.status(500).json({ error: 'Fehler beim Löschen des Links.' });
+            }
+
+            saveUsersBackup();
+            io.emit('link_deleted', { id: linkId });
+            res.json({ message: 'Link gelöscht.' });
+        });
     });
 });
+
 
 
 

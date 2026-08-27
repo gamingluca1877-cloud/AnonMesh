@@ -897,7 +897,11 @@ function initSocketConnection() {
         }
     });
 
-    // Real-time Shared Link Socket Events
+    // Real-time Shared Link & Folder Socket Events
+    state.socket.on('folder_added', () => {
+        loadLinkFolders();
+    });
+
     state.socket.on('link_added', () => {
         loadSharedLinks();
     });
@@ -905,6 +909,7 @@ function initSocketConnection() {
     state.socket.on('link_deleted', () => {
         loadSharedLinks();
     });
+
 
 
 
@@ -2742,8 +2747,6 @@ async function changeAudioInputDevice(deviceId) {
 async function changeAudioOutputDevice(deviceId) {
     if (!deviceId) return;
     selectedSpeakerDeviceId = deviceId;
-    console.log('[🔊 SPEAKER CHANGED]', deviceId);
-
     const remoteAudio = document.getElementById('remote-audio');
     if (remoteAudio && typeof remoteAudio.setSinkId === 'function') {
         try {
@@ -2754,28 +2757,12 @@ async function changeAudioOutputDevice(deviceId) {
     }
 }
 
-function playTestAudio() {
-    try {
-        const ctx = getCallAudioContext();
-        if (ctx) {
-            if (ctx.state === 'suspended') ctx.resume().catch(e => {});
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(440, ctx.currentTime);
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.4);
-        }
-    } catch (e) {}
-}
-
 // ----------------------------------------------------
-// SHARED LINKS & WEBSITES VAULT LOGIC (DDOS & DOXEN FOLDERS)
+// SHARED LINKS & WEBSITES VAULT LOGIC (DYNAMIC FOLDERS & OWNER DELETE)
 // ----------------------------------------------------
 let activeLinkCategory = 'DDOS';
+
+let loadedSharedFolders = ['DDOS', 'DOXEN'];
 
 function openSharedLinksModal() {
     const modal = document.getElementById('shared-links-modal');
@@ -2783,7 +2770,7 @@ function openSharedLinksModal() {
         modal.classList.remove('hidden');
         modal.style.display = 'flex';
     }
-    switchLinkCategory(activeLinkCategory);
+    loadLinkFolders();
 }
 
 function closeSharedLinksModal() {
@@ -2792,45 +2779,99 @@ function closeSharedLinksModal() {
         modal.classList.add('hidden');
         modal.style.display = 'none';
     }
+    toggleAddLinkForm(false);
 }
 
-
-function switchLinkCategory(category) {
-    activeLinkCategory = category;
-    
-    const tabDDOS = document.getElementById('tab-ddos');
-    const tabDOXEN = document.getElementById('tab-doxen');
-    const categorySelect = document.getElementById('link-category-select');
-    const categoryBadge = document.getElementById('current-category-badge');
-
-    if (category === 'DDOS') {
-        if (tabDDOS) {
-            tabDDOS.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
-            tabDDOS.style.color = '#ffffff';
-            tabDDOS.style.border = 'none';
-        }
-        if (tabDOXEN) {
-            tabDOXEN.style.background = 'var(--bg-main)';
-            tabDOXEN.style.color = 'var(--text-secondary)';
-            tabDOXEN.style.border = '1px solid var(--border-color)';
-        }
-        if (categorySelect) categorySelect.value = 'DDOS';
-        if (categoryBadge) categoryBadge.textContent = 'Ordner: DDOS';
+function toggleAddLinkForm(forceState) {
+    const form = document.getElementById('add-link-form');
+    if (!form) return;
+    if (typeof forceState === 'boolean') {
+        if (forceState) form.classList.remove('hidden');
+        else form.classList.add('hidden');
     } else {
-        if (tabDOXEN) {
-            tabDOXEN.style.background = 'linear-gradient(135deg, #ec4899, #f43f5e)';
-            tabDOXEN.style.color = '#ffffff';
-            tabDOXEN.style.border = 'none';
+        form.classList.toggle('hidden');
+    }
+}
+
+async function loadLinkFolders() {
+    try {
+        const response = await fetch('/api/link-folders', {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (response.ok) {
+            const folders = await response.json();
+            loadedSharedFolders = (folders || []).map(f => f.name);
+            if (loadedSharedFolders.length === 0) loadedSharedFolders = ['DDOS', 'DOXEN'];
         }
-        if (tabDDOS) {
-            tabDDOS.style.background = 'var(--bg-main)';
-            tabDDOS.style.color = 'var(--text-secondary)';
-            tabDDOS.style.border = '1px solid var(--border-color)';
-        }
-        if (categorySelect) categorySelect.value = 'DOXEN';
-        if (categoryBadge) categoryBadge.textContent = 'Ordner: DOXEN';
+    } catch (e) {
+        console.warn('loadLinkFolders error:', e);
+    }
+    renderLinkFolderTabs();
+    loadSharedLinks();
+}
+
+function renderLinkFolderTabs() {
+    const bar = document.getElementById('link-folders-bar');
+    if (!bar) return;
+
+    if (!loadedSharedFolders.includes(activeLinkCategory)) {
+        activeLinkCategory = loadedSharedFolders[0] || 'DDOS';
     }
 
+    bar.innerHTML = loadedSharedFolders.map(folder => {
+        const isActive = folder.toUpperCase() === activeLinkCategory.toUpperCase();
+        const activeBg = folder.toUpperCase() === 'DOXEN' 
+            ? 'linear-gradient(135deg, #ec4899, #f43f5e)' 
+            : 'linear-gradient(135deg, #2563eb, #3b82f6)';
+        
+        const style = isActive
+            ? `background: ${activeBg}; color: #ffffff; border: none; font-weight: 800; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);`
+            : `background: #2b2d31; color: #b5bac1; border: 1px solid rgba(255, 255, 255, 0.08); font-weight: 700;`;
+
+        return `
+            <button type="button" onclick="switchLinkCategory('${escapeHtml(folder)}')" style="padding: 8px 16px; border-radius: 8px; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: all 0.2s; ${style}">
+                <span>📁 ${escapeHtml(folder)}</span>
+            </button>
+        `;
+    }).join('');
+
+    const categoryBadge = document.getElementById('current-category-badge');
+    if (categoryBadge) {
+        categoryBadge.textContent = `Ordner: ${activeLinkCategory}`;
+    }
+}
+
+async function promptCreateNewFolder() {
+    const input = prompt('Wie soll der neue Ordner heißen?');
+    if (!input || !input.trim()) return;
+
+    const folderName = input.trim().toUpperCase();
+
+    try {
+        const response = await fetch('/api/link-folders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({ name: folderName })
+        });
+
+        if (response.ok) {
+            activeLinkCategory = folderName;
+            loadLinkFolders();
+        } else {
+            const errData = await response.json();
+            alert(errData.error || 'Fehler beim Erstellen des Ordners.');
+        }
+    } catch (e) {
+        console.warn('promptCreateNewFolder error:', e);
+    }
+}
+
+function switchLinkCategory(category) {
+    activeLinkCategory = category.toUpperCase();
+    renderLinkFolderTabs();
     loadSharedLinks();
 }
 
@@ -2854,42 +2895,45 @@ function renderSharedLinks(links) {
     const listContainer = document.getElementById('shared-links-list');
     if (!listContainer) return;
 
-    const filteredLinks = (links || []).filter(l => (l.category || 'DDOS').toUpperCase() === activeLinkCategory);
+    const filteredLinks = (links || []).filter(l => (l.category || 'DDOS').toUpperCase() === activeLinkCategory.toUpperCase());
 
     if (!filteredLinks || filteredLinks.length === 0) {
         listContainer.innerHTML = `
             <div style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 30px 10px;">
                 <span>📁 Im Ordner "${activeLinkCategory}" sind noch keine Links gespeichert.</span>
-                <br><span style="font-size: 0.8rem; margin-top: 4px; display: inline-block;">Füge oben einen Link hinzu!</span>
+                <br><span style="font-size: 0.8rem; margin-top: 6px; color: #22c55e; display: inline-block;">Klicke oben auf "➕ Link hinzufügen", um eine Webseite einzufügen!</span>
             </div>
         `;
         return;
     }
 
+    const currentUserId = state.currentUser?.id;
+
     listContainer.innerHTML = filteredLinks.map(link => {
         const creatorName = escapeHtml(link.username || 'Anonym');
         const title = escapeHtml(link.title);
         const url = escapeHtml(link.url);
-        const category = escapeHtml(link.category || 'DDOS');
+        const isOwner = Number(link.user_id) === Number(currentUserId);
 
         return `
-            <div style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; transition: border-color 0.2s;">
+            <div style="background: #2b2d31; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
                 <div style="display: flex; flex-direction: column; overflow: hidden; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 1.1rem;">🔗</span>
-                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;">${title}</span>
-                        <span style="font-size: 0.72rem; font-weight: 700; background: ${category === 'DOXEN' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(59, 130, 246, 0.2)'}; color: ${category === 'DOXEN' ? '#f472b6' : '#38bdf8'}; padding: 2px 6px; border-radius: 4px;">${category}</span>
+                        <span style="font-size: 1.05rem;">🔗</span>
+                        <span style="font-weight: 700; font-size: 0.92rem; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;">${title}</span>
                     </div>
-                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); font-size: 0.82rem; text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${url}</a>
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">Hinzugefügt von: ${creatorName}</span>
+                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; font-size: 0.82rem; text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${url}</a>
+                    <span style="font-size: 0.73rem; color: #94a3b8;">Hinzugefügt von: ${creatorName}</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="background: var(--accent); color: #ffffff; padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 700; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm);">
+                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #ffffff; padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; text-decoration: none; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
                         <span>Öffnen 🌐</span>
                     </a>
-                    <button onclick="deleteSharedLink(${link.id})" title="Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
-                        🗑️
-                    </button>
+                    ${isOwner ? `
+                        <button onclick="deleteSharedLink(${link.id})" title="Nur du als Ersteller kannst diesen Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                            🗑️
+                        </button>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -2900,12 +2944,11 @@ async function handleAddLink(e) {
     if (e) e.preventDefault();
     const titleInput = document.getElementById('link-title-input');
     const urlInput = document.getElementById('link-url-input');
-    const categorySelect = document.getElementById('link-category-select');
     if (!titleInput || !urlInput) return;
 
     const title = titleInput.value.trim();
     const url = urlInput.value.trim();
-    const category = categorySelect ? categorySelect.value : activeLinkCategory;
+    const category = activeLinkCategory;
 
     if (!title || !url) return;
 
@@ -2921,7 +2964,8 @@ async function handleAddLink(e) {
         if (response.ok) {
             titleInput.value = '';
             urlInput.value = '';
-            switchLinkCategory(category);
+            toggleAddLinkForm(false);
+            loadSharedLinks();
         }
     } catch (err) {
         console.warn('handleAddLink error:', err);
@@ -2931,17 +2975,23 @@ async function handleAddLink(e) {
 async function deleteSharedLink(id) {
     if (!id) return;
     try {
-        await fetch(`/api/links/${id}`, {
+        const response = await fetch(`/api/links/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
-        loadSharedLinks();
+        if (response.ok) {
+            loadSharedLinks();
+        } else {
+            const errData = await response.json();
+            alert(errData.error || 'Du kannst diesen Link nicht löschen.');
+        }
     } catch (err) {
         console.warn('deleteSharedLink error:', err);
     }
 }
 
 // Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
+
 window.startCall = startCall;
 window.acceptIncomingCall = acceptIncomingCall;
 window.rejectIncomingCall = rejectIncomingCall;
@@ -2958,8 +3008,11 @@ window.triggerPanicWipe = triggerPanicWipe;
 window.openSharedLinksModal = openSharedLinksModal;
 window.closeSharedLinksModal = closeSharedLinksModal;
 window.switchLinkCategory = switchLinkCategory;
+window.promptCreateNewFolder = promptCreateNewFolder;
+window.toggleAddLinkForm = toggleAddLinkForm;
 window.handleAddLink = handleAddLink;
 window.deleteSharedLink = deleteSharedLink;
+
 
 
 
