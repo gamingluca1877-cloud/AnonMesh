@@ -148,6 +148,7 @@ async function seedDefaultAccounts() {
     try {
         const hash1 = await bcrypt.hash('Luca1877', 10);
         const hash2 = await bcrypt.hash('1234', 10);
+        const hash3 = await bcrypt.hash('1234', 10);
 
         db.serialize(() => {
             db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color, avatar_url) VALUES (1, 'Anonym1', 'anonym1@anonmesh.de', ?, '#06b6d4', 'logo.jpg')`, [hash1]);
@@ -156,7 +157,10 @@ async function seedDefaultAccounts() {
             db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color, avatar_url) VALUES (2, 'Anonym2', 'anonym2@anonmesh.de', ?, '#10b981', 'logo.jpg')`, [hash2]);
             db.run(`UPDATE users SET username = 'Anonym2', password_hash = ?, avatar_url = 'logo.jpg' WHERE email = 'anonym2@anonmesh.de' OR id = 2`, [hash2]);
 
-            db.run(`INSERT OR IGNORE INTO contacts (user_id, contact_id) VALUES (1, 2), (2, 1)`, (err) => {
+            db.run(`INSERT OR IGNORE INTO users (id, username, email, password_hash, avatar_color, avatar_url) VALUES (3, 'Anonym3', 'anonym3@anonmesh.de', ?, '#f59e0b', 'logo.jpg')`, [hash3]);
+            db.run(`UPDATE users SET username = 'Anonym3', password_hash = ?, avatar_url = 'logo.jpg' WHERE email = 'anonym3@anonmesh.de' OR id = 3`, [hash3]);
+
+            db.run(`INSERT OR IGNORE INTO contacts (user_id, contact_id) VALUES (1, 2), (2, 1), (1, 3), (3, 1), (2, 3), (3, 2)`, (err) => {
                 if (err) console.warn('Contacts seed info:', err.message);
             });
         });
@@ -164,6 +168,7 @@ async function seedDefaultAccounts() {
         console.warn('seedDefaultAccounts error:', e);
     }
 }
+
 
 
 
