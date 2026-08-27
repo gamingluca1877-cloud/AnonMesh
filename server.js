@@ -805,6 +805,38 @@ app.get('/api/links', authenticateToken, (req, res) => {
     });
 });
 
+// POST /api/links/sync - Auto-sync client localStorage vault to server DB (survives GitHub redeploys!)
+app.post('/api/links/sync', authenticateToken, (req, res) => {
+    const { links, folders } = req.body;
+
+    db.serialize(() => {
+        if (Array.isArray(folders)) {
+            const insertFolder = `INSERT OR IGNORE INTO shared_folders (name, created_by) VALUES (?, ?)`;
+            folders.forEach(f => {
+                if (f && f.name) {
+                    db.run(insertFolder, [f.name.toUpperCase(), f.created_by || req.user.id]);
+                }
+            });
+        }
+
+        if (Array.isArray(links)) {
+            const insertLink = `INSERT OR IGNORE INTO shared_links (user_id, title, url, category, created_at) VALUES (?, ?, ?, ?, ?)`;
+            links.forEach(l => {
+                if (l && l.title && l.url) {
+                    db.run(insertLink, [l.user_id || req.user.id, l.title, l.url, (l.category || 'DDOS').toUpperCase(), l.created_at || new Date().toISOString()]);
+                }
+            });
+        }
+
+        db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_links) WHERE name = 'shared_links'`, () => {});
+        db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_folders) WHERE name = 'shared_folders'`, () => {});
+
+        saveUsersBackup();
+        res.json({ message: 'Erfolgreich synchronisiert!' });
+    });
+});
+
+
 // GET /api/link-folders - Fetch all folder categories
 app.get('/api/link-folders', authenticateToken, (req, res) => {
     db.all("SELECT * FROM shared_folders ORDER BY id ASC", [], (err, rows) => {

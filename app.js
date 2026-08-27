@@ -2764,10 +2764,85 @@ async function changeAudioOutputDevice(deviceId) {
 }
 
 // ----------------------------------------------------
+// LOCALSTORAGE DUAL VAULT HELPERS (SURVIVES GITHUB REDEPLOYS)
+// ----------------------------------------------------
+function saveLinkToLocalVault(link) {
+    if (!link || !link.title || !link.url) return;
+    try {
+        let vault = JSON.parse(localStorage.getItem('anonmesh_vault_links') || '[]');
+        const category = (link.category || 'DDOS').toUpperCase();
+        const exists = vault.some(l => l.url === link.url && l.title === link.title && (l.category || 'DDOS').toUpperCase() === category);
+        if (!exists) {
+            vault.push({
+                user_id: link.user_id || state.currentUser?.id,
+                username: link.username || state.currentUser?.username,
+                title: link.title,
+                url: link.url,
+                category: category,
+                created_at: link.created_at || new Date().toISOString()
+            });
+            localStorage.setItem('anonmesh_vault_links', JSON.stringify(vault));
+        }
+    } catch (e) {}
+}
+
+function saveFolderToLocalVault(folderObj) {
+    if (!folderObj) return;
+    try {
+        let vault = JSON.parse(localStorage.getItem('anonmesh_vault_folders') || '[]');
+        const name = (typeof folderObj === 'string' ? folderObj : folderObj.name).toUpperCase();
+        const exists = vault.some(f => (typeof f === 'string' ? f : f.name).toUpperCase() === name);
+        if (!exists) {
+            vault.push({
+                name: name,
+                created_by: typeof folderObj === 'object' ? folderObj.created_by : state.currentUser?.id
+            });
+            localStorage.setItem('anonmesh_vault_folders', JSON.stringify(vault));
+        }
+    } catch (e) {}
+}
+
+function getLocalVaultFolders() {
+    try {
+        return JSON.parse(localStorage.getItem('anonmesh_vault_folders') || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+function getLocalVaultLinks() {
+    try {
+        return JSON.parse(localStorage.getItem('anonmesh_vault_links') || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+async function syncLocalVaultToServer() {
+    if (!state.token) return;
+    try {
+        const localLinks = getLocalVaultLinks();
+        const localFolders = getLocalVaultFolders();
+
+        if (localLinks.length > 0 || localFolders.length > 0) {
+            await fetch('/api/links/sync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.token}`
+                },
+                body: JSON.stringify({ links: localLinks, folders: localFolders })
+            });
+        }
+    } catch (e) {
+        console.warn('syncLocalVaultToServer error:', e);
+    }
+}
+
+// ----------------------------------------------------
 // SHARED LINKS & WEBSITES VAULT LOGIC (DYNAMIC FOLDERS & OWNER DELETE)
 // ----------------------------------------------------
 let activeLinkCategory = 'DDOS';
-
 let loadedSharedFolders = ['DDOS', 'DOXEN'];
 
 function openSharedLinksModal() {
@@ -2802,6 +2877,7 @@ function toggleAddLinkForm(forceState) {
 let loadedSharedFolderObjects = [];
 
 async function loadLinkFolders() {
+    await syncLocalVaultToServer();
     try {
         const response = await fetch('/api/link-folders', {
             headers: { 'Authorization': `Bearer ${state.token}` }
@@ -2809,10 +2885,19 @@ async function loadLinkFolders() {
         if (response.ok) {
             const folders = await response.json();
             loadedSharedFolderObjects = folders || [];
+            loadedSharedFolderObjects.forEach(f => saveFolderToLocalVault(f));
         }
     } catch (e) {
         console.warn('loadLinkFolders error:', e);
     }
+
+    const vaultFolders = getLocalVaultFolders();
+    vaultFolders.forEach(vf => {
+        if (!loadedSharedFolderObjects.some(f => f.name.toUpperCase() === vf.name.toUpperCase())) {
+            loadedSharedFolderObjects.push(vf);
+        }
+    });
+
     renderLinkFolderTabs();
     loadSharedLinks();
 }
@@ -2854,7 +2939,7 @@ function renderLinkFolderTabs() {
                     <span>📁 ${escapeHtml(folder)}</span>
                 </button>
                 ${isFolderOwner ? `
-                    <button type="button" onclick="deleteLinkFolder(${folderObj.id}, '${escapeHtml(folder)}')" title="Nur du als Ersteller kannst diesen Ordner löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.78rem;">
+                    <button type="button" onclick="deleteLinkFolder(${folderObj.id || 0}, '${escapeHtml(folder)}')" title="Nur du als Ersteller kannst diesen Ordner löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.78rem;">
                         ✕
                     </button>
                 ` : ''}
@@ -2869,21 +2954,22 @@ function renderLinkFolderTabs() {
 }
 
 async function deleteLinkFolder(id, name) {
-    if (!id || !name) return;
+    if (!name) return;
     if (!confirm(`Möchtest du den Ordner "${name}" und alle enthaltenen Links wirklich löschen?`)) return;
 
     try {
-        const response = await fetch(`/api/link-folders/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-
-        if (response.ok) {
-            loadLinkFolders();
-        } else {
-            const errData = await response.json();
-            alert(errData.error || 'Du kannst diesen Ordner nicht löschen.');
+        if (id && id > 0) {
+            await fetch(`/api/link-folders/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
         }
+        
+        let vault = getLocalVaultFolders();
+        vault = vault.filter(f => (typeof f === 'string' ? f : f.name).toUpperCase() !== name.toUpperCase());
+        localStorage.setItem('anonmesh_vault_folders', JSON.stringify(vault));
+
+        loadLinkFolders();
     } catch (e) {
         console.warn('deleteLinkFolder error:', e);
     }
@@ -2895,6 +2981,7 @@ async function promptCreateNewFolder() {
     if (!input || !input.trim()) return;
 
     const folderName = input.trim().toUpperCase();
+    saveFolderToLocalVault({ name: folderName, created_by: state.currentUser?.id });
 
     try {
         const response = await fetch('/api/link-folders', {
@@ -2910,11 +2997,10 @@ async function promptCreateNewFolder() {
             activeLinkCategory = folderName;
             loadLinkFolders();
         } else {
-            const errData = await response.json();
-            alert(errData.error || 'Fehler beim Erstellen des Ordners.');
+            loadLinkFolders();
         }
     } catch (e) {
-        console.warn('promptCreateNewFolder error:', e);
+        loadLinkFolders();
     }
 }
 
@@ -2928,16 +3014,33 @@ async function loadSharedLinks() {
     const listContainer = document.getElementById('shared-links-list');
     if (!listContainer) return;
 
+    let serverLinks = [];
     try {
         const response = await fetch('/api/links', {
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
-        if (!response.ok) return;
-        const links = await response.json();
-        renderSharedLinks(links);
+        if (response.ok) {
+            serverLinks = await response.json();
+            (serverLinks || []).forEach(l => saveLinkToLocalVault(l));
+        }
     } catch (err) {
         console.warn('loadSharedLinks error:', err);
     }
+
+    const localVaultLinks = getLocalVaultLinks();
+    const allLinksMap = new Map();
+
+    localVaultLinks.forEach(l => {
+        const key = `${l.url}_${l.title}_${(l.category || 'DDOS').toUpperCase()}`;
+        allLinksMap.set(key, l);
+    });
+
+    serverLinks.forEach(l => {
+        const key = `${l.url}_${l.title}_${(l.category || 'DDOS').toUpperCase()}`;
+        allLinksMap.set(key, l);
+    });
+
+    renderSharedLinks(Array.from(allLinksMap.values()));
 }
 
 function renderSharedLinks(links) {
@@ -2962,7 +3065,7 @@ function renderSharedLinks(links) {
         const creatorName = escapeHtml(link.username || 'Anonym');
         const title = escapeHtml(link.title);
         const url = escapeHtml(link.url);
-        const isOwner = Number(link.user_id) === Number(currentUserId);
+        const isOwner = link.user_id ? Number(link.user_id) === Number(currentUserId) : true;
 
         return `
             <div style="background: #2b2d31; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
@@ -2979,7 +3082,7 @@ function renderSharedLinks(links) {
                         <span>Öffnen 🌐</span>
                     </a>
                     ${isOwner ? `
-                        <button onclick="deleteSharedLink(${link.id})" title="Nur du als Ersteller kannst diesen Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                        <button onclick="deleteSharedLink(${link.id || 0}, '${escapeHtml(title)}')" title="Nur du als Ersteller kannst diesen Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
                             🗑️
                         </button>
                     ` : ''}
@@ -3001,6 +3104,17 @@ async function handleAddLink(e) {
 
     if (!title || !url) return;
 
+    const newLinkObj = {
+        user_id: state.currentUser?.id,
+        username: state.currentUser?.username,
+        title,
+        url,
+        category,
+        created_at: new Date().toISOString()
+    };
+
+    saveLinkToLocalVault(newLinkObj);
+
     try {
         const response = await fetch('/api/links', {
             method: 'POST',
@@ -3015,29 +3129,35 @@ async function handleAddLink(e) {
             urlInput.value = '';
             toggleAddLinkForm(false);
             loadSharedLinks();
+        } else {
+            loadSharedLinks();
         }
     } catch (err) {
-        console.warn('handleAddLink error:', err);
+        loadSharedLinks();
     }
 }
 
-async function deleteSharedLink(id) {
-    if (!id) return;
+async function deleteSharedLink(id, title) {
     try {
-        const response = await fetch(`/api/links/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${state.token}` }
-        });
-        if (response.ok) {
-            loadSharedLinks();
-        } else {
-            const errData = await response.json();
-            alert(errData.error || 'Du kannst diesen Link nicht löschen.');
+        if (id && id > 0) {
+            await fetch(`/api/links/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
         }
+
+        if (title) {
+            let vault = getLocalVaultLinks();
+            vault = vault.filter(l => l.title !== title);
+            localStorage.setItem('anonmesh_vault_links', JSON.stringify(vault));
+        }
+
+        loadSharedLinks();
     } catch (err) {
         console.warn('deleteSharedLink error:', err);
     }
 }
+
 
 // Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
 
