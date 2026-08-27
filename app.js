@@ -889,6 +889,16 @@ function initSocketConnection() {
         }
     });
 
+    // Real-time Shared Link Socket Events
+    state.socket.on('link_added', () => {
+        loadSharedLinks();
+    });
+
+    state.socket.on('link_deleted', () => {
+        loadSharedLinks();
+    });
+
+
 
     // Contact Online/Offline Status Change
 
@@ -2754,6 +2764,120 @@ function playTestAudio() {
     } catch (e) {}
 }
 
+// ----------------------------------------------------
+// SHARED LINKS & WEBSITES VAULT LOGIC
+// ----------------------------------------------------
+function openSharedLinksModal() {
+    const modal = document.getElementById('shared-links-modal');
+    if (modal) modal.classList.remove('hidden');
+    loadSharedLinks();
+}
+
+function closeSharedLinksModal() {
+    const modal = document.getElementById('shared-links-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function loadSharedLinks() {
+    const listContainer = document.getElementById('shared-links-list');
+    if (!listContainer) return;
+
+    try {
+        const response = await fetch('/api/links', {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (!response.ok) return;
+        const links = await response.json();
+        renderSharedLinks(links);
+    } catch (err) {
+        console.warn('loadSharedLinks error:', err);
+    }
+}
+
+function renderSharedLinks(links) {
+    const listContainer = document.getElementById('shared-links-list');
+    if (!listContainer) return;
+
+    if (!links || links.length === 0) {
+        listContainer.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 30px 10px;">
+                <span>🌐 Noch keine Links hinzugefügt.</span>
+                <br><span style="font-size: 0.8rem; margin-top: 4px; display: inline-block;">Füge oben eine Webseite hinzu, damit alle Benutzer sie sehen können!</span>
+            </div>
+        `;
+        return;
+    }
+
+    listContainer.innerHTML = links.map(link => {
+        const creatorName = escapeHtml(link.username || 'Anonym');
+        const title = escapeHtml(link.title);
+        const url = escapeHtml(link.url);
+
+        return `
+            <div style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; transition: border-color 0.2s;">
+                <div style="display: flex; flex-direction: column; overflow: hidden; gap: 4px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.1rem;">🔗</span>
+                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">${title}</span>
+                    </div>
+                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); font-size: 0.82rem; text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${url}</a>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Hinzugefügt von: ${creatorName}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="background: var(--accent); color: #ffffff; padding: 8px 14px; border-radius: var(--radius-sm); font-weight: 700; font-size: 0.85rem; text-decoration: none; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm);">
+                        <span>Öffnen 🌐</span>
+                    </a>
+                    <button onclick="deleteSharedLink(${link.id})" title="Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function handleAddLink(e) {
+    if (e) e.preventDefault();
+    const titleInput = document.getElementById('link-title-input');
+    const urlInput = document.getElementById('link-url-input');
+    if (!titleInput || !urlInput) return;
+
+    const title = titleInput.value.trim();
+    const url = urlInput.value.trim();
+    if (!title || !url) return;
+
+    try {
+        const response = await fetch('/api/links', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.token}`
+            },
+            body: JSON.stringify({ title, url })
+        });
+        if (response.ok) {
+            titleInput.value = '';
+            urlInput.value = '';
+            loadSharedLinks();
+        }
+    } catch (err) {
+        console.warn('handleAddLink error:', err);
+    }
+}
+
+async function deleteSharedLink(id) {
+    if (!id) return;
+    try {
+        await fetch(`/api/links/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        loadSharedLinks();
+    } catch (err) {
+        console.warn('deleteSharedLink error:', err);
+    }
+}
+
 // Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
 window.startCall = startCall;
 window.acceptIncomingCall = acceptIncomingCall;
@@ -2768,6 +2892,11 @@ window.changeAudioInputDevice = changeAudioInputDevice;
 window.changeAudioOutputDevice = changeAudioOutputDevice;
 window.playTestAudio = playTestAudio;
 window.triggerPanicWipe = triggerPanicWipe;
+window.openSharedLinksModal = openSharedLinksModal;
+window.closeSharedLinksModal = closeSharedLinksModal;
+window.handleAddLink = handleAddLink;
+window.deleteSharedLink = deleteSharedLink;
+
 
 
 

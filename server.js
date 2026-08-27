@@ -137,6 +137,18 @@ db.serialize(() => {
         )
     `);
 
+    // 4. Shared Links Table
+    db.run(`
+        CREATE TABLE IF NOT EXISTS shared_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+
     // Restore registered accounts & seed Anonym1 and Anonym2
     setTimeout(() => {
         restoreUsersFromBackup();
@@ -217,26 +229,29 @@ function saveUsersBackup() {
             if (err || !contacts) return;
             db.all(`SELECT id, sender_id, receiver_id, content, timestamp, is_read FROM messages`, [], (err, messages) => {
                 if (err || !messages) return;
+                db.all(`SELECT id, user_id, title, url, created_at FROM shared_links`, [], (err, links) => {
 
-                const backupObj = {
-                    users: users || [],
-                    contacts: contacts || [],
-                    messages: messages || []
-                };
+                    const backupObj = {
+                        users: users || [],
+                        contacts: contacts || [],
+                        messages: messages || [],
+                        shared_links: links || []
+                    };
 
-                try {
-                    const jsonStr = JSON.stringify(backupObj, null, 2);
-                    const encryptedPayload = encryptData(jsonStr);
-                    fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
+                    try {
+                        const jsonStr = JSON.stringify(backupObj, null, 2);
+                        const encryptedPayload = encryptData(jsonStr);
+                        fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
 
-                    // Clean up old backup files
-                    const oldUserEnc = path.join(__dirname, 'users_backup.enc');
-                    if (fs.existsSync(oldUserEnc)) fs.unlinkSync(oldUserEnc);
-                    const oldUserJson = path.join(__dirname, 'users_backup.json');
-                    if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
-                } catch (e) {
-                    console.error('Error writing encrypted db backup:', e.message);
-                }
+                        // Clean up old backup files
+                        const oldUserEnc = path.join(__dirname, 'users_backup.enc');
+                        if (fs.existsSync(oldUserEnc)) fs.unlinkSync(oldUserEnc);
+                        const oldUserJson = path.join(__dirname, 'users_backup.json');
+                        if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
+                    } catch (e) {
+                        console.error('Error writing encrypted db backup:', e.message);
+                    }
+                });
             });
         });
     });
@@ -279,8 +294,17 @@ function restoreUsersFromBackup() {
                 });
             }
 
-            console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, and ${backupObj.messages?.length || 0} chat messages from AES-256-GCM backup!`);
+            // 4. Restore Shared Links
+            if (Array.isArray(backupObj.shared_links) && backupObj.shared_links.length > 0) {
+                const insertLink = `INSERT OR IGNORE INTO shared_links (id, user_id, title, url, created_at) VALUES (?, ?, ?, ?, ?)`;
+                backupObj.shared_links.forEach(l => {
+                    db.run(insertLink, [l.id, l.user_id, l.title, l.url, l.created_at || new Date().toISOString()]);
+                });
+            }
+
+            console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, ${backupObj.messages?.length || 0} messages, and ${backupObj.shared_links?.length || 0} shared links from AES-256-GCM backup!`);
         });
+
 
 
     } catch (e) {
@@ -714,6 +738,70 @@ app.delete('/api/messages/panic-wipe', authenticateToken, (req, res) => {
         res.json({ message: '🚨 Sämtliche Chatverläufe wurden unwiderruflich gelöscht und überschrieben!' });
     });
 });
+
+// ----------------------------------------------------
+// 7. SHARED LINKS API ROUTES
+// ----------------------------------------------------
+
+// GET /api/links - Fetch all shared links
+app.get('/api/links', authenticateToken, (req, res) => {
+    db.all("SELECT sl.*, u.username FROM shared_links sl LEFT JOIN users u ON sl.user_id = u.id ORDER BY sl.id DESC", [], (err, rows) => {
+        if (err) {
+            console.error('Error fetching links:', err);
+            return res.status(500).json({ error: 'Fehler beim Laden der Links.' });
+        }
+        res.json(rows || []);
+    });
+});
+
+// POST /api/links - Add a new shared link
+app.post('/api/links', authenticateToken, (req, res) => {
+    let { title, url } = req.body;
+    if (!title || !url) {
+        return res.status(400).json({ error: 'Titel und URL erforderlich.' });
+    }
+
+    title = title.trim();
+    url = url.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+
+    db.run("INSERT INTO shared_links (user_id, title, url) VALUES (?, ?, ?)", [req.user.id, title, url], function(err) {
+        if (err) {
+            console.error('Error inserting link:', err);
+            return res.status(500).json({ error: 'Fehler beim Speichern des Links.' });
+        }
+
+        const newLink = {
+            id: this.lastID,
+            user_id: req.user.id,
+            username: req.user.username,
+            title,
+            url,
+            created_at: new Date().toISOString()
+        };
+
+        saveUsersBackup();
+        io.emit('link_added', newLink);
+        res.json(newLink);
+    });
+});
+
+// DELETE /api/links/:id - Delete a shared link
+app.delete('/api/links/:id', authenticateToken, (req, res) => {
+    const linkId = req.params.id;
+    db.run("DELETE FROM shared_links WHERE id = ?", [linkId], function(err) {
+        if (err) {
+            return res.status(500).json({ error: 'Fehler beim Löschen des Links.' });
+        }
+
+        saveUsersBackup();
+        io.emit('link_deleted', { id: linkId });
+        res.json({ message: 'Link gelöscht.' });
+    });
+});
+
 
 
 
