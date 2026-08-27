@@ -747,26 +747,42 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
         <div style="background: var(--bg-card); width: 90vw; max-width: 580px; border-radius: 16px; padding: 24px; color: var(--text-primary); border: 1px solid var(--border-color); box-shadow: var(--shadow-lg); max-height: 85vh; display: flex; flex-direction: column;">
             
             <!-- Modal Header -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
                 <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
                     🌐 Gemeinsame Links &amp; Webseiten
                 </h3>
                 <button onclick="closeSharedLinksModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.6rem; cursor: pointer; padding: 0 4px; line-height: 1;">✕</button>
             </div>
 
+            <!-- Folder Tabs (DDOS & DOXEN) -->
+            <div style="display: flex; gap: 10px; margin-bottom: 18px;">
+                <button id="tab-ddos" onclick="switchLinkCategory('DDOS')" style="flex: 1; padding: 12px; border: none; border-radius: var(--radius-md); background: linear-gradient(135deg, #2563eb, #3b82f6); color: #ffffff; font-weight: 800; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); transition: all 0.2s;">
+                    📁 DDOS
+                </button>
+                <button id="tab-doxen" onclick="switchLinkCategory('DOXEN')" style="flex: 1; padding: 12px; border: none; border-radius: var(--radius-md); background: var(--bg-main); color: var(--text-secondary); font-weight: 800; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--border-color); transition: all 0.2s;">
+                    📁 DOXEN
+                </button>
+            </div>
+
             <!-- Add New Link Form -->
             <form id="add-link-form" onsubmit="handleAddLink(event)" style="background: var(--bg-main); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px;">
-                <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent); display: flex; align-items: center; gap: 6px;">
-                    <span>➕ Neuen Link hinzufügen (für alle sichtbar)</span>
+                <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent); display: flex; align-items: center; justify-content: space-between;">
+                    <span>➕ Neuen Link hinzufügen</span>
+                    <span id="current-category-badge" style="font-size: 0.78rem; background: rgba(59, 130, 246, 0.2); color: #38bdf8; padding: 2px 8px; border-radius: 4px;">Ordner: DDOS</span>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="text" id="link-title-input" placeholder="Titel / Seitenname (z.B. Google, Youtube, Fingerprint)..." required style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; outline: none;">
+                    <input type="text" id="link-title-input" placeholder="Titel / Seitenname (z.B. Test-Tool, Server-Link)..." required style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; outline: none;">
                     <input type="url" id="link-url-input" placeholder="Webadresse / URL (z.B. https://example.com)..." required style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; outline: none;">
+                    <select id="link-category-select" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; outline: none; cursor: pointer;">
+                        <option value="DDOS">Zielordner: DDOS</option>
+                        <option value="DOXEN">Zielordner: DOXEN</option>
+                    </select>
                 </div>
                 <button type="submit" class="btn" style="background: linear-gradient(135deg, #16a34a, #22c55e); color: #ffffff; font-weight: 700; border: none; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);">
-                    Link speichern 🚀
+                    Link in Ordner speichern 🚀
                 </button>
             </form>
+
 
             <!-- Links Container List -->
             <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;" id="shared-links-list">

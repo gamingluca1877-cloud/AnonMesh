@@ -2765,17 +2765,58 @@ function playTestAudio() {
 }
 
 // ----------------------------------------------------
-// SHARED LINKS & WEBSITES VAULT LOGIC
+// SHARED LINKS & WEBSITES VAULT LOGIC (DDOS & DOXEN FOLDERS)
 // ----------------------------------------------------
+let activeLinkCategory = 'DDOS';
+
 function openSharedLinksModal() {
     const modal = document.getElementById('shared-links-modal');
     if (modal) modal.classList.remove('hidden');
-    loadSharedLinks();
+    switchLinkCategory(activeLinkCategory);
 }
 
 function closeSharedLinksModal() {
     const modal = document.getElementById('shared-links-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+function switchLinkCategory(category) {
+    activeLinkCategory = category;
+    
+    const tabDDOS = document.getElementById('tab-ddos');
+    const tabDOXEN = document.getElementById('tab-doxen');
+    const categorySelect = document.getElementById('link-category-select');
+    const categoryBadge = document.getElementById('current-category-badge');
+
+    if (category === 'DDOS') {
+        if (tabDDOS) {
+            tabDDOS.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
+            tabDDOS.style.color = '#ffffff';
+            tabDDOS.style.border = 'none';
+        }
+        if (tabDOXEN) {
+            tabDOXEN.style.background = 'var(--bg-main)';
+            tabDOXEN.style.color = 'var(--text-secondary)';
+            tabDOXEN.style.border = '1px solid var(--border-color)';
+        }
+        if (categorySelect) categorySelect.value = 'DDOS';
+        if (categoryBadge) categoryBadge.textContent = 'Ordner: DDOS';
+    } else {
+        if (tabDOXEN) {
+            tabDOXEN.style.background = 'linear-gradient(135deg, #ec4899, #f43f5e)';
+            tabDOXEN.style.color = '#ffffff';
+            tabDOXEN.style.border = 'none';
+        }
+        if (tabDDOS) {
+            tabDDOS.style.background = 'var(--bg-main)';
+            tabDDOS.style.color = 'var(--text-secondary)';
+            tabDDOS.style.border = '1px solid var(--border-color)';
+        }
+        if (categorySelect) categorySelect.value = 'DOXEN';
+        if (categoryBadge) categoryBadge.textContent = 'Ordner: DOXEN';
+    }
+
+    loadSharedLinks();
 }
 
 async function loadSharedLinks() {
@@ -2798,27 +2839,31 @@ function renderSharedLinks(links) {
     const listContainer = document.getElementById('shared-links-list');
     if (!listContainer) return;
 
-    if (!links || links.length === 0) {
+    const filteredLinks = (links || []).filter(l => (l.category || 'DDOS').toUpperCase() === activeLinkCategory);
+
+    if (!filteredLinks || filteredLinks.length === 0) {
         listContainer.innerHTML = `
             <div style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 30px 10px;">
-                <span>🌐 Noch keine Links hinzugefügt.</span>
-                <br><span style="font-size: 0.8rem; margin-top: 4px; display: inline-block;">Füge oben eine Webseite hinzu, damit alle Benutzer sie sehen können!</span>
+                <span>📁 Im Ordner "${activeLinkCategory}" sind noch keine Links gespeichert.</span>
+                <br><span style="font-size: 0.8rem; margin-top: 4px; display: inline-block;">Füge oben einen Link hinzu!</span>
             </div>
         `;
         return;
     }
 
-    listContainer.innerHTML = links.map(link => {
+    listContainer.innerHTML = filteredLinks.map(link => {
         const creatorName = escapeHtml(link.username || 'Anonym');
         const title = escapeHtml(link.title);
         const url = escapeHtml(link.url);
+        const category = escapeHtml(link.category || 'DDOS');
 
         return `
             <div style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; transition: border-color 0.2s;">
                 <div style="display: flex; flex-direction: column; overflow: hidden; gap: 4px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 1.1rem;">🔗</span>
-                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">${title}</span>
+                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;">${title}</span>
+                        <span style="font-size: 0.72rem; font-weight: 700; background: ${category === 'DOXEN' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(59, 130, 246, 0.2)'}; color: ${category === 'DOXEN' ? '#f472b6' : '#38bdf8'}; padding: 2px 6px; border-radius: 4px;">${category}</span>
                     </div>
                     <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: var(--accent); font-size: 0.82rem; text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${url}</a>
                     <span style="font-size: 0.75rem; color: var(--text-muted);">Hinzugefügt von: ${creatorName}</span>
@@ -2840,10 +2885,13 @@ async function handleAddLink(e) {
     if (e) e.preventDefault();
     const titleInput = document.getElementById('link-title-input');
     const urlInput = document.getElementById('link-url-input');
+    const categorySelect = document.getElementById('link-category-select');
     if (!titleInput || !urlInput) return;
 
     const title = titleInput.value.trim();
     const url = urlInput.value.trim();
+    const category = categorySelect ? categorySelect.value : activeLinkCategory;
+
     if (!title || !url) return;
 
     try {
@@ -2853,12 +2901,12 @@ async function handleAddLink(e) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${state.token}`
             },
-            body: JSON.stringify({ title, url })
+            body: JSON.stringify({ title, url, category })
         });
         if (response.ok) {
             titleInput.value = '';
             urlInput.value = '';
-            loadSharedLinks();
+            switchLinkCategory(category);
         }
     } catch (err) {
         console.warn('handleAddLink error:', err);
@@ -2894,8 +2942,10 @@ window.playTestAudio = playTestAudio;
 window.triggerPanicWipe = triggerPanicWipe;
 window.openSharedLinksModal = openSharedLinksModal;
 window.closeSharedLinksModal = closeSharedLinksModal;
+window.switchLinkCategory = switchLinkCategory;
 window.handleAddLink = handleAddLink;
 window.deleteSharedLink = deleteSharedLink;
+
 
 
 

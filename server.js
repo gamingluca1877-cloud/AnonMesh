@@ -144,9 +144,12 @@ db.serialize(() => {
             user_id INTEGER,
             title TEXT NOT NULL,
             url TEXT NOT NULL,
+            category TEXT DEFAULT 'DDOS',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+    db.run("ALTER TABLE shared_links ADD COLUMN category TEXT DEFAULT 'DDOS'", () => {});
+
 
 
     // Restore registered accounts & seed Anonym1 and Anonym2
@@ -229,7 +232,8 @@ function saveUsersBackup() {
             if (err || !contacts) return;
             db.all(`SELECT id, sender_id, receiver_id, content, timestamp, is_read FROM messages`, [], (err, messages) => {
                 if (err || !messages) return;
-                db.all(`SELECT id, user_id, title, url, created_at FROM shared_links`, [], (err, links) => {
+                db.all(`SELECT id, user_id, title, url, category, created_at FROM shared_links`, [], (err, links) => {
+
 
                     const backupObj = {
                         users: users || [],
@@ -296,11 +300,12 @@ function restoreUsersFromBackup() {
 
             // 4. Restore Shared Links
             if (Array.isArray(backupObj.shared_links) && backupObj.shared_links.length > 0) {
-                const insertLink = `INSERT OR IGNORE INTO shared_links (id, user_id, title, url, created_at) VALUES (?, ?, ?, ?, ?)`;
+                const insertLink = `INSERT OR IGNORE INTO shared_links (id, user_id, title, url, category, created_at) VALUES (?, ?, ?, ?, ?, ?)`;
                 backupObj.shared_links.forEach(l => {
-                    db.run(insertLink, [l.id, l.user_id, l.title, l.url, l.created_at || new Date().toISOString()]);
+                    db.run(insertLink, [l.id, l.user_id, l.title, l.url, l.category || 'DDOS', l.created_at || new Date().toISOString()]);
                 });
             }
+
 
             console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, ${backupObj.messages?.length || 0} messages, and ${backupObj.shared_links?.length || 0} shared links from AES-256-GCM backup!`);
         });
@@ -756,18 +761,20 @@ app.get('/api/links', authenticateToken, (req, res) => {
 
 // POST /api/links - Add a new shared link
 app.post('/api/links', authenticateToken, (req, res) => {
-    let { title, url } = req.body;
+    let { title, url, category } = req.body;
     if (!title || !url) {
         return res.status(400).json({ error: 'Titel und URL erforderlich.' });
     }
 
     title = title.trim();
     url = url.trim();
+    category = (category && ['DDOS', 'DOXEN'].includes(category.toUpperCase())) ? category.toUpperCase() : 'DDOS';
+
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'https://' + url;
     }
 
-    db.run("INSERT INTO shared_links (user_id, title, url) VALUES (?, ?, ?)", [req.user.id, title, url], function(err) {
+    db.run("INSERT INTO shared_links (user_id, title, url, category) VALUES (?, ?, ?, ?)", [req.user.id, title, url, category], function(err) {
         if (err) {
             console.error('Error inserting link:', err);
             return res.status(500).json({ error: 'Fehler beim Speichern des Links.' });
@@ -779,6 +786,7 @@ app.post('/api/links', authenticateToken, (req, res) => {
             username: req.user.username,
             title,
             url,
+            category,
             created_at: new Date().toISOString()
         };
 
@@ -787,6 +795,7 @@ app.post('/api/links', authenticateToken, (req, res) => {
         res.json(newLink);
     });
 });
+
 
 // DELETE /api/links/:id - Delete a shared link
 app.delete('/api/links/:id', authenticateToken, (req, res) => {
