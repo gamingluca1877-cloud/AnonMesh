@@ -189,11 +189,19 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             endCurrentCall();
         }
+
+        const linksBtn = e.target.closest('#all-links-btn');
+        if (linksBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            openSharedLinksModal();
+        }
     });
 
     initMatrixRain();
     checkSiteAccess();
 });
+
 
 
 
