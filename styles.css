@@ -1203,4 +1203,13 @@ input, textarea {
 .btn-end-call { background: #ef4444 !important; }
 .btn-end-call:hover { background: #dc2626 !important; }
 
+/* Full Text Selection for Chat Messages, Links & Inputs */
+.messages-container, .messages-list, .message-row, .msg-bubble, .message-bubble, .message-text, .msg-text, p, span, a, input, textarea {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+
 

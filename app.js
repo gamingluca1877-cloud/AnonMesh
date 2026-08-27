@@ -270,14 +270,19 @@ resetInactivityTimer();
 // ----------------------------------------------------
 function initSourceProtection() {
 
-    // Disable Right-Click Context Menu
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Allow Right-Click Context Menu on chat elements, messages, inputs, and links so users can copy text easily
+    document.addEventListener('contextmenu', (e) => {
+        const isChatElement = e.target.closest('.messages-container, .messages-list, .message-row, .msg-bubble, .message-bubble, input, textarea, a, p, span');
+        if (!isChatElement) {
+            e.preventDefault();
+        }
+    });
 
-    // Disable Developer Tools & Inspect Shortcuts
+    // Disable Developer Tools Shortcuts (F12, Ctrl+Shift+I, Ctrl+U)
     document.addEventListener('keydown', (e) => {
         if (
             e.key === 'F12' ||
-            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
+            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) ||
             (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 's' || e.key === 'S'))
         ) {
             e.preventDefault();
@@ -288,14 +293,11 @@ function initSourceProtection() {
     // Disable Drag & Drop of UI Assets
     document.addEventListener('dragstart', (e) => e.preventDefault());
 
-    // Disable Text Copy outside Input & Textarea fields
+    // Allow Text Copy everywhere in chat messages & inputs (Strg+C / Right-Click -> Copy)
     document.addEventListener('copy', (e) => {
-        const target = e.target;
-        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-            e.preventDefault();
-            return false;
-        }
+        return true;
     });
+
 
     // Active Anti-DevTools Inspection Trap -> Replace inspect view with Chinese Cipher Obfuscation
     setInterval(() => {
