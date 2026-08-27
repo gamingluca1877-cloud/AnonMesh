@@ -270,14 +270,6 @@ resetInactivityTimer();
 // ----------------------------------------------------
 function initSourceProtection() {
 
-    // Allow Right-Click Context Menu on chat elements, messages, inputs, and links so users can copy text easily
-    document.addEventListener('contextmenu', (e) => {
-        const isChatElement = e.target.closest('.messages-container, .messages-list, .message-row, .msg-bubble, .message-bubble, input, textarea, a, p, span');
-        if (!isChatElement) {
-            e.preventDefault();
-        }
-    });
-
     // Disable Developer Tools Shortcuts (F12, Ctrl+Shift+I, Ctrl+U)
     document.addEventListener('keydown', (e) => {
         if (
@@ -293,10 +285,6 @@ function initSourceProtection() {
     // Disable Drag & Drop of UI Assets
     document.addEventListener('dragstart', (e) => e.preventDefault());
 
-    // Allow Text Copy everywhere in chat messages & inputs (Strg+C / Right-Click -> Copy)
-    document.addEventListener('copy', (e) => {
-        return true;
-    });
 
 
     // Active Anti-DevTools Inspection Trap -> Replace inspect view with Chinese Cipher Obfuscation
