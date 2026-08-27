@@ -1366,13 +1366,14 @@ async function appendMessageBubble(msg, isOutgoing) {
             </div>
         `;
     } else {
-        contentHtml = `<div class="msg-content">${escapeHtml(decryptedContent)}</div>`;
+        contentHtml = `<div class="msg-content" style="user-select: text !important; -webkit-user-select: text !important;">${escapeHtml(decryptedContent)}</div>`;
     }
 
     row.innerHTML = `
-        <div class="msg-bubble">
+        <div class="msg-bubble" style="user-select: text !important; -webkit-user-select: text !important; position: relative;">
+            <button class="msg-copy-btn" title="Text kopieren" onclick="window.copyMessageText(this)" style="position: absolute; top: 4px; right: 6px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem; opacity: 0.5; padding: 2px 4px; border-radius: 4px; transition: opacity 0.2s;" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=0.5">📋</button>
             ${contentHtml}
-            <div class="msg-footer">
+            <div class="msg-footer" style="user-select: none;">
                 <span class="msg-time">${timeStr}</span>
                 ${checkmarksStr}
             </div>
@@ -1382,6 +1383,26 @@ async function appendMessageBubble(msg, isOutgoing) {
     messagesList.appendChild(row);
     scrollToBottom();
 }
+
+window.copyMessageText = function(btn) {
+    const bubble = btn.closest('.msg-bubble');
+    if (!bubble) return;
+    const content = bubble.querySelector('.msg-content');
+    if (!content) return;
+    const textToCopy = content.innerText || content.textContent;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const origText = btn.innerHTML;
+        btn.innerHTML = '✅ Kopiert!';
+        btn.style.color = '#22c55e';
+        setTimeout(() => {
+            btn.innerHTML = origText;
+            btn.style.color = '';
+        }, 1500);
+    }).catch(err => {
+        console.warn('Clipboard write error:', err);
+    });
+};
+
 
 
 
