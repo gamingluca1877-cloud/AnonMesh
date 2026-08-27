@@ -902,6 +902,10 @@ function initSocketConnection() {
         loadLinkFolders();
     });
 
+    state.socket.on('folder_deleted', () => {
+        loadLinkFolders();
+    });
+
     state.socket.on('link_added', () => {
         loadSharedLinks();
     });
@@ -909,6 +913,7 @@ function initSocketConnection() {
     state.socket.on('link_deleted', () => {
         loadSharedLinks();
     });
+
 
 
 
@@ -2793,6 +2798,8 @@ function toggleAddLinkForm(forceState) {
     }
 }
 
+let loadedSharedFolderObjects = [];
+
 async function loadLinkFolders() {
     try {
         const response = await fetch('/api/link-folders', {
@@ -2800,8 +2807,7 @@ async function loadLinkFolders() {
         });
         if (response.ok) {
             const folders = await response.json();
-            loadedSharedFolders = (folders || []).map(f => f.name);
-            if (loadedSharedFolders.length === 0) loadedSharedFolders = ['DDOS', 'DOXEN'];
+            loadedSharedFolderObjects = folders || [];
         }
     } catch (e) {
         console.warn('loadLinkFolders error:', e);
@@ -2814,12 +2820,25 @@ function renderLinkFolderTabs() {
     const bar = document.getElementById('link-folders-bar');
     if (!bar) return;
 
-    if (!loadedSharedFolders.includes(activeLinkCategory)) {
-        activeLinkCategory = loadedSharedFolders[0] || 'DDOS';
+    if (loadedSharedFolderObjects.length === 0) {
+        loadedSharedFolderObjects = [
+            { id: 1, name: 'DDOS', created_by: null },
+            { id: 2, name: 'DOXEN', created_by: null }
+        ];
     }
 
-    bar.innerHTML = loadedSharedFolders.map(folder => {
+    const folderNames = loadedSharedFolderObjects.map(f => f.name.toUpperCase());
+    if (!folderNames.includes(activeLinkCategory.toUpperCase())) {
+        activeLinkCategory = folderNames[0] || 'DDOS';
+    }
+
+    const currentUserId = state.currentUser?.id;
+
+    bar.innerHTML = loadedSharedFolderObjects.map(folderObj => {
+        const folder = folderObj.name;
         const isActive = folder.toUpperCase() === activeLinkCategory.toUpperCase();
+        const isFolderOwner = folderObj.created_by && Number(folderObj.created_by) === Number(currentUserId);
+
         const activeBg = folder.toUpperCase() === 'DOXEN' 
             ? 'linear-gradient(135deg, #ec4899, #f43f5e)' 
             : 'linear-gradient(135deg, #2563eb, #3b82f6)';
@@ -2829,9 +2848,16 @@ function renderLinkFolderTabs() {
             : `background: #2b2d31; color: #b5bac1; border: 1px solid rgba(255, 255, 255, 0.08); font-weight: 700;`;
 
         return `
-            <button type="button" onclick="switchLinkCategory('${escapeHtml(folder)}')" style="padding: 8px 16px; border-radius: 8px; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: all 0.2s; ${style}">
-                <span>📁 ${escapeHtml(folder)}</span>
-            </button>
+            <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                <button type="button" onclick="switchLinkCategory('${escapeHtml(folder)}')" style="padding: 8px 14px; border-radius: 8px; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: all 0.2s; ${style}">
+                    <span>📁 ${escapeHtml(folder)}</span>
+                </button>
+                ${isFolderOwner ? `
+                    <button type="button" onclick="deleteLinkFolder(${folderObj.id}, '${escapeHtml(folder)}')" title="Nur du als Ersteller kannst diesen Ordner löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.78rem;">
+                        ✕
+                    </button>
+                ` : ''}
+            </div>
         `;
     }).join('');
 
@@ -2840,6 +2866,28 @@ function renderLinkFolderTabs() {
         categoryBadge.textContent = `Ordner: ${activeLinkCategory}`;
     }
 }
+
+async function deleteLinkFolder(id, name) {
+    if (!id || !name) return;
+    if (!confirm(`Möchtest du den Ordner "${name}" und alle enthaltenen Links wirklich löschen?`)) return;
+
+    try {
+        const response = await fetch(`/api/link-folders/${id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+
+        if (response.ok) {
+            loadLinkFolders();
+        } else {
+            const errData = await response.json();
+            alert(errData.error || 'Du kannst diesen Ordner nicht löschen.');
+        }
+    } catch (e) {
+        console.warn('deleteLinkFolder error:', e);
+    }
+}
+
 
 async function promptCreateNewFolder() {
     const input = prompt('Wie soll der neue Ordner heißen?');
@@ -3009,7 +3057,9 @@ window.openSharedLinksModal = openSharedLinksModal;
 window.closeSharedLinksModal = closeSharedLinksModal;
 window.switchLinkCategory = switchLinkCategory;
 window.promptCreateNewFolder = promptCreateNewFolder;
+window.deleteLinkFolder = deleteLinkFolder;
 window.toggleAddLinkForm = toggleAddLinkForm;
+
 window.handleAddLink = handleAddLink;
 window.deleteSharedLink = deleteSharedLink;
 
