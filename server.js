@@ -348,12 +348,20 @@ function restoreUsersFromBackup() {
                 });
             }
 
+            // 6. Fix sqlite_sequence for AUTOINCREMENT counters (prevents ID collision bugs)
+            db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM messages) WHERE name = 'messages'`, () => {});
+            db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_links) WHERE name = 'shared_links'`, () => {});
+            db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_folders) WHERE name = 'shared_folders'`, () => {});
+            db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM users) WHERE name = 'users'`, () => {});
+            db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM contacts) WHERE name = 'contacts'`, () => {});
+
             console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, ${backupObj.messages?.length || 0} messages, ${backupObj.shared_links?.length || 0} links, and ${backupObj.shared_folders?.length || 0} folders from AES-256-GCM backup!`);
         });
     } catch (e) {
         console.error('Error restoring encrypted db backup:', e.message);
     }
 }
+
 
 
 

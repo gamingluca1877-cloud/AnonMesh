@@ -1299,7 +1299,7 @@ async function loadMessages(contactId) {
     messagesList.innerHTML = '';
     if (localMsgs.length > 0) {
         for (const msg of localMsgs) {
-            const isOutgoing = msg.sender_id === state.currentUser.id;
+            const isOutgoing = Number(msg.sender_id) === Number(state.currentUser.id);
             await appendMessageBubble(msg, isOutgoing);
         }
         scrollToBottom();
@@ -1322,7 +1322,7 @@ async function loadMessages(contactId) {
             const mergedMsgs = getLocalVaultMessages(contactId);
             messagesList.innerHTML = '';
             for (const msg of mergedMsgs) {
-                const isOutgoing = msg.sender_id === state.currentUser.id;
+                const isOutgoing = Number(msg.sender_id) === Number(state.currentUser.id);
                 await appendMessageBubble(msg, isOutgoing);
             }
             scrollToBottom();
@@ -1332,6 +1332,7 @@ async function loadMessages(contactId) {
     } catch (err) {
         console.error('Fehler beim Laden des Nachrichtenverlaufs:', err);
     }
+
 }
 
 
