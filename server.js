@@ -12,6 +12,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const cors = require('cors');
+const fs = require('fs');
+
 
 const APP_PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'anonmesh_secure_chat_secret_key_2026';
@@ -78,9 +80,14 @@ function rateLimiter(maxAttempts = 5, windowMs = 15 * 60 * 1000) {
 
 
 // ----------------------------------------------------
-// Database Setup & Initialization (SQLite)
+// Database Setup & Initialization (SQLite & Persistent Storage)
 // ----------------------------------------------------
-const dbPath = path.join(__dirname, 'chat.db');
+const DATA_DIR = process.env.DATA_DIR || (fs.existsSync('/var/data') ? '/var/data' : __dirname);
+if (!fs.existsSync(DATA_DIR)) {
+    try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {}
+}
+
+const dbPath = path.join(DATA_DIR, 'chat.db');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('[-] Database connection error:', err.message);
@@ -88,6 +95,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
         console.log('[+] Connected to SQLite database:', dbPath);
     }
 });
+
 
 // Enable foreign key constraints and create tables
 db.serialize(() => {
@@ -206,9 +214,10 @@ async function seedDefaultAccounts() {
 // Encrypted Complete Database Backup Engine (AES-256-GCM)
 // Backs up Users, Contacts & Messages so NO CHATS ARE EVER LOST!
 // ----------------------------------------------------
-const fs = require('fs');
 const crypto = require('crypto');
-const BACKUP_ENC_FILE = path.join(__dirname, 'chat_backup.enc');
+
+const BACKUP_ENC_FILE = path.join(DATA_DIR, 'chat_backup.enc');
+const ALT_BACKUP_ENC_FILE = path.join(__dirname, 'chat_backup.enc');
 
 // Master encryption key derived from JWT_SECRET
 const MASTER_KEY = crypto.createHash('sha256').update(JWT_SECRET + '_anonmesh_master_db_key_2026').digest();
@@ -261,10 +270,13 @@ function saveUsersBackup() {
                             const jsonStr = JSON.stringify(backupObj, null, 2);
                             const encryptedPayload = encryptData(jsonStr);
                             fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
+                            if (BACKUP_ENC_FILE !== ALT_BACKUP_ENC_FILE) {
+                                try { fs.writeFileSync(ALT_BACKUP_ENC_FILE, encryptedPayload, 'utf8'); } catch (e) {}
+                            }
 
                             // Clean up old backup files
                             const oldUserEnc = path.join(__dirname, 'users_backup.enc');
-                            if (fs.existsSync(oldUserEnc)) fs.unlinkSync(oldUserEnc);
+                            if (fs.existsSync(oldUserEnc) && oldUserEnc !== BACKUP_ENC_FILE) fs.unlinkSync(oldUserEnc);
                             const oldUserJson = path.join(__dirname, 'users_backup.json');
                             if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
                         } catch (e) {
@@ -278,9 +290,15 @@ function saveUsersBackup() {
 }
 
 function restoreUsersFromBackup() {
-    if (!fs.existsSync(BACKUP_ENC_FILE)) return;
+    let backupFilePath = BACKUP_ENC_FILE;
+    if (!fs.existsSync(backupFilePath) && fs.existsSync(ALT_BACKUP_ENC_FILE)) {
+        backupFilePath = ALT_BACKUP_ENC_FILE;
+    }
+    if (!fs.existsSync(backupFilePath)) return;
+
     try {
-        const encryptedData = fs.readFileSync(BACKUP_ENC_FILE, 'utf8');
+        const encryptedData = fs.readFileSync(backupFilePath, 'utf8');
+
         const jsonStr = decryptData(encryptedData);
         if (!jsonStr) return;
 
