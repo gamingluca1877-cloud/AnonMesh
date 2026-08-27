@@ -2779,14 +2779,21 @@ let activeLinkCategory = 'DDOS';
 
 function openSharedLinksModal() {
     const modal = document.getElementById('shared-links-modal');
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
     switchLinkCategory(activeLinkCategory);
 }
 
 function closeSharedLinksModal() {
     const modal = document.getElementById('shared-links-modal');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
 }
+
 
 function switchLinkCategory(category) {
     activeLinkCategory = category;

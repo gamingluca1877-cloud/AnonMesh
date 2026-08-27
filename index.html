@@ -554,6 +554,63 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
         </div>
     </div>
 
+    <!-- ==================================================== -->
+    <!-- 3b. SHARED LINKS & WEBSITES VAULT MODAL             -->
+    <!-- ==================================================== -->
+    <div id="shared-links-modal" class="modal-overlay hidden">
+        <div class="modal-card" style="max-width: 540px; width: 92vw; background: #1e1f22; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); color: #f2f3f5; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8); text-align: left; padding: 20px;">
+            
+            <!-- Modal Header -->
+            <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+                    🌐 Gemeinsame Links &amp; Webseiten
+                </h3>
+                <button type="button" class="icon-btn" onclick="closeSharedLinksModal()" style="background: transparent; border: none; color: #b5bac1; font-size: 1.4rem; cursor: pointer;">✕</button>
+            </div>
+
+            <!-- Folder Tabs (DDOS & DOXEN) -->
+            <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+                <button id="tab-ddos" type="button" onclick="switchLinkCategory('DDOS')" style="flex: 1; padding: 12px; border: none; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #3b82f6); color: #ffffff; font-weight: 800; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); transition: all 0.2s;">
+                    📁 DDOS
+                </button>
+                <button id="tab-doxen" type="button" onclick="switchLinkCategory('DOXEN')" style="flex: 1; padding: 12px; border: none; border-radius: 10px; background: #2b2d31; color: #b5bac1; font-weight: 800; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(255, 255, 255, 0.08); transition: all 0.2s;">
+                    📁 DOXEN
+                </button>
+            </div>
+
+            <!-- Add New Link Form -->
+            <form id="add-link-form" onsubmit="handleAddLink(event)" style="background: #2b2d31; padding: 14px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
+                <div style="font-weight: 700; font-size: 0.85rem; color: #38bdf8; display: flex; align-items: center; justify-content: space-between;">
+                    <span>➕ Neuen Link hinzufügen</span>
+                    <span id="current-category-badge" style="font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); color: #38bdf8; padding: 2px 8px; border-radius: 4px;">Ordner: DDOS</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input type="text" id="link-title-input" placeholder="Titel / Seitenname..." required style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                    <input type="url" id="link-url-input" placeholder="Webadresse / URL (z.B. https://example.com)..." required style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none;">
+                    <select id="link-category-select" style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none; cursor: pointer;">
+                        <option value="DDOS">Zielordner: DDOS</option>
+                        <option value="DOXEN">Zielordner: DOXEN</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn" style="background: linear-gradient(135deg, #16a34a, #22c55e); color: #ffffff; font-weight: 700; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);">
+                    Link in Ordner speichern 🚀
+                </button>
+            </form>
+
+            <!-- Links Container List -->
+            <div style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;" id="shared-links-list">
+                <!-- Links will be loaded dynamically -->
+            </div>
+
+            <!-- Modal Actions Footer -->
+            <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; margin-top: 16px; text-align: right;">
+                <button type="button" class="btn btn-primary" style="padding: 8px 24px; border-radius: 20px; background: #313338; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;" onclick="closeSharedLinksModal()">Schließen</button>
+            </div>
+
+        </div>
+    </div>
+
+
 
 
     <!-- ==================================================== -->
@@ -740,67 +797,11 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                 </button>
             </div>
         </div>
-    <!-- ==================================================== -->
-    <!-- 7. SHARED LINKS & WEBSITES VAULT MODAL -->
-    <!-- ==================================================== -->
-    <div id="shared-links-modal" class="modal-overlay hidden" style="z-index: 10000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);">
-        <div style="background: var(--bg-card); width: 90vw; max-width: 580px; border-radius: 16px; padding: 24px; color: var(--text-primary); border: 1px solid var(--border-color); box-shadow: var(--shadow-lg); max-height: 85vh; display: flex; flex-direction: column;">
-            
-            <!-- Modal Header -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
-                <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
-                    🌐 Gemeinsame Links &amp; Webseiten
-                </h3>
-                <button onclick="closeSharedLinksModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.6rem; cursor: pointer; padding: 0 4px; line-height: 1;">✕</button>
-            </div>
-
-            <!-- Folder Tabs (DDOS & DOXEN) -->
-            <div style="display: flex; gap: 10px; margin-bottom: 18px;">
-                <button id="tab-ddos" onclick="switchLinkCategory('DDOS')" style="flex: 1; padding: 12px; border: none; border-radius: var(--radius-md); background: linear-gradient(135deg, #2563eb, #3b82f6); color: #ffffff; font-weight: 800; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); transition: all 0.2s;">
-                    📁 DDOS
-                </button>
-                <button id="tab-doxen" onclick="switchLinkCategory('DOXEN')" style="flex: 1; padding: 12px; border: none; border-radius: var(--radius-md); background: var(--bg-main); color: var(--text-secondary); font-weight: 800; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--border-color); transition: all 0.2s;">
-                    📁 DOXEN
-                </button>
-            </div>
-
-            <!-- Add New Link Form -->
-            <form id="add-link-form" onsubmit="handleAddLink(event)" style="background: var(--bg-main); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px;">
-                <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent); display: flex; align-items: center; justify-content: space-between;">
-                    <span>➕ Neuen Link hinzufügen</span>
-                    <span id="current-category-badge" style="font-size: 0.78rem; background: rgba(59, 130, 246, 0.2); color: #38bdf8; padding: 2px 8px; border-radius: 4px;">Ordner: DDOS</span>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="text" id="link-title-input" placeholder="Titel / Seitenname (z.B. Test-Tool, Server-Link)..." required style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; outline: none;">
-                    <input type="url" id="link-url-input" placeholder="Webadresse / URL (z.B. https://example.com)..." required style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; outline: none;">
-                    <select id="link-category-select" style="background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem; outline: none; cursor: pointer;">
-                        <option value="DDOS">Zielordner: DDOS</option>
-                        <option value="DOXEN">Zielordner: DOXEN</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn" style="background: linear-gradient(135deg, #16a34a, #22c55e); color: #ffffff; font-weight: 700; border: none; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);">
-                    Link in Ordner speichern 🚀
-                </button>
-            </form>
-
-
-            <!-- Links Container List -->
-            <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px;" id="shared-links-list">
-                <!-- Links will be loaded dynamically -->
-            </div>
-
-            <!-- Footer Close Button -->
-            <div style="border-top: 1px solid var(--border-color); padding-top: 14px; margin-top: 16px; text-align: right;">
-                <button onclick="closeSharedLinksModal()" style="background: var(--border-color); color: var(--text-primary); border: none; padding: 10px 20px; border-radius: var(--radius-sm); font-weight: 700; cursor: pointer; font-size: 0.9rem;">
-                    Schließen
-                </button>
-            </div>
-
-        </div>
     </div>
 
     <!-- Application Script -->
     <script src="app.js"></script>
+
 
 </body>
 
