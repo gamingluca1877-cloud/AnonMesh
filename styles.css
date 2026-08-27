@@ -13,33 +13,33 @@
 
 
 :root {
-    /* Color Palette - Dark Mode Default (Telegram / Modern Slate) */
-    --bg-main: #0f172a;
-    --bg-card: #1e293b;
-    --bg-sidebar: #17212b;
-    --bg-chat: #0e1621;
-    --border-color: #334155;
+    /* Color Palette - Dark Red-Orange Theme (Matching Screenshot) */
+    --bg-main: #120c0d;
+    --bg-card: #1a1214;
+    --bg-sidebar: #161012;
+    --bg-chat: #0f090a;
+    --border-color: #2e1e21;
     
     --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
+    --text-secondary: #a39498;
+    --text-muted: #746468;
     
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --accent-light: rgba(59, 130, 246, 0.15);
+    --accent: #ef4444;
+    --accent-hover: #dc2626;
+    --accent-light: rgba(239, 68, 68, 0.15);
     
-    --msg-incoming: #182533;
+    --msg-incoming: #1d1416;
     --msg-incoming-text: #f8fafc;
-    --msg-outgoing: #2b5278;
+    --msg-outgoing: #ef4444;
     --msg-outgoing-text: #ffffff;
     
-    --online-color: #22c55e;
-    --offline-color: #64748b;
-    --unread-bg: #3b82f6;
+    --online-color: #ef4444;
+    --offline-color: #746468;
+    --unread-bg: #ef4444;
     
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6);
     
     --radius-sm: 8px;
     --radius-md: 12px;
@@ -50,29 +50,29 @@
 }
 
 [data-theme="light"] {
-    /* Color Palette - Light Mode (WhatsApp Clean Light) */
-    --bg-main: #f0f2f5;
+    /* Color Palette - Light Red Theme */
+    --bg-main: #fcf8f8;
     --bg-card: #ffffff;
     --bg-sidebar: #ffffff;
-    --bg-chat: #efeae2;
-    --border-color: #e2e8f0;
+    --bg-chat: #f5ebeb;
+    --border-color: #fee2e2;
     
-    --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
+    --text-primary: #180c0e;
+    --text-secondary: #645458;
+    --text-muted: #948488;
     
-    --accent: #00a884;
-    --accent-hover: #008f70;
-    --accent-light: rgba(0, 168, 132, 0.12);
+    --accent: #ef4444;
+    --accent-hover: #dc2626;
+    --accent-light: rgba(239, 68, 68, 0.12);
     
     --msg-incoming: #ffffff;
-    --msg-incoming-text: #111b21;
-    --msg-outgoing: #d9fdd3;
-    --msg-outgoing-text: #111b21;
+    --msg-incoming-text: #180c0e;
+    --msg-outgoing: #fee2e2;
+    --msg-outgoing-text: #180c0e;
     
-    --online-color: #16a34a;
-    --offline-color: #94a3b8;
-    --unread-bg: #25d366;
+    --online-color: #ef4444;
+    --offline-color: #948488;
+    --unread-bg: #ef4444;
 }
 
 /* Reset & Base Styles */
@@ -89,14 +89,15 @@
 }
 
 ::selection {
-    background: #0284c7 !important;
+    background: #ef4444 !important;
     color: #ffffff !important;
 }
 
 ::-moz-selection {
-    background: #0284c7 !important;
+    background: #ef4444 !important;
     color: #ffffff !important;
 }
+
 
 
 body {

@@ -2925,12 +2925,10 @@ function renderLinkFolderTabs() {
         const isActive = folder.toUpperCase() === activeLinkCategory.toUpperCase();
         const isFolderOwner = folderObj.created_by && Number(folderObj.created_by) === Number(currentUserId);
 
-        const activeBg = folder.toUpperCase() === 'DOXEN' 
-            ? 'linear-gradient(135deg, #ec4899, #f43f5e)' 
-            : 'linear-gradient(135deg, #2563eb, #3b82f6)';
+        const activeBg = 'linear-gradient(135deg, #ef4444, #f97316)';
         
         const style = isActive
-            ? `background: ${activeBg}; color: #ffffff; border: none; font-weight: 800; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);`
+            ? `background: ${activeBg}; color: #ffffff; border: none; font-weight: 800; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);`
             : `background: #2b2d31; color: #b5bac1; border: 1px solid rgba(255, 255, 255, 0.08); font-weight: 700;`;
 
         return `
@@ -3053,7 +3051,7 @@ function renderSharedLinks(links) {
         listContainer.innerHTML = `
             <div style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 30px 10px;">
                 <span>📁 Im Ordner "${activeLinkCategory}" sind noch keine Links gespeichert.</span>
-                <br><span style="font-size: 0.8rem; margin-top: 6px; color: #22c55e; display: inline-block;">Klicke oben auf "➕ Link hinzufügen", um eine Webseite einzufügen!</span>
+                <br><span style="font-size: 0.8rem; margin-top: 6px; color: #ef4444; display: inline-block;">Klicke oben auf "➕ Link hinzufügen", um eine Webseite einzufügen!</span>
             </div>
         `;
         return;
@@ -3074,13 +3072,14 @@ function renderSharedLinks(links) {
                         <span style="font-size: 1.05rem;">🔗</span>
                         <span style="font-weight: 700; font-size: 0.92rem; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;">${title}</span>
                     </div>
-                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; font-size: 0.82rem; text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${url}</a>
+                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #f87171; font-size: 0.82rem; text-decoration: none; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px;">${url}</a>
                     <span style="font-size: 0.73rem; color: #94a3b8;">Hinzugefügt von: ${creatorName}</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: #ffffff; padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; text-decoration: none; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+                    <a href="${url}" target="_blank" rel="noopener noreferrer" style="background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; text-decoration: none; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);">
                         <span>Öffnen 🌐</span>
                     </a>
+
                     ${isOwner ? `
                         <button onclick="deleteSharedLink(${link.id || 0}, '${escapeHtml(title)}')" title="Nur du als Ersteller kannst diesen Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
                             🗑️
