@@ -226,10 +226,10 @@ function initMatrixRain() {
     const drops = Array(columns).fill(1);
 
     function draw() {
-        ctx.fillStyle = 'rgba(3, 7, 18, 0.08)';
+        ctx.fillStyle = 'rgba(18, 12, 13, 0.08)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        ctx.fillStyle = '#22c55e';
+        ctx.fillStyle = '#ea580c';
         ctx.font = `${fontSize}px monospace`;
 
         for (let i = 0; i < drops.length; i++) {
@@ -242,6 +242,7 @@ function initMatrixRain() {
             drops[i]++;
         }
     }
+
 
     setInterval(draw, 35);
 }
