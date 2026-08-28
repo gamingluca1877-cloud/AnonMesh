@@ -823,13 +823,14 @@ input, textarea {
 
 .e2ee-badge {
     font-size: 0.7rem;
-    background: rgba(34, 197, 94, 0.15);
-    color: #22c55e;
-    border: 1px solid rgba(34, 197, 94, 0.3);
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
     padding: 2px 6px;
     border-radius: 10px;
     font-weight: 600;
 }
+
 .e2ee-short { display: none; }
 
 /* RESPONSIVE DESIGN (Mobile View & Mobile Browser Heights) */
