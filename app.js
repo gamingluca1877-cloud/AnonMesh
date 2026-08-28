@@ -3361,6 +3361,44 @@ async function loadAnonFiles() {
     renderAnonFiles();
 }
 
+function downloadAnonFile(fileId) {
+    const file = state.sharedFiles.find(f => Number(f.id) === Number(fileId));
+    if (!file || !file.file_data) return;
+
+    let filename = file.filename;
+    
+    // Convert data URL to Blob to guarantee exact MIME type & extension download on all browsers
+    try {
+        const parts = file.file_data.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mimeType });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 20000);
+    } catch (e) {
+        // Fallback to direct anchor download
+        const a = document.createElement('a');
+        a.href = file.file_data;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+}
+
 function renderAnonFiles() {
     const list = document.getElementById('anonfiles-list');
     if (!list) return;
@@ -3406,9 +3444,9 @@ function renderAnonFiles() {
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                    <a href="${file.file_data}" download="${escapeHtml(file.filename)}" class="btn" style="background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; font-weight: 800; font-size: 0.82rem; border: none; padding: 7px 14px; border-radius: 8px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(234, 88, 12, 0.35);">
+                    <button type="button" onclick="downloadAnonFile(${file.id})" class="btn" style="background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; font-weight: 800; font-size: 0.82rem; border: none; padding: 7px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(234, 88, 12, 0.35);">
                         <span>📥 Download</span>
-                    </a>
+                    </button>
                     ${deleteBtnHtml}
                 </div>
             </div>
@@ -3430,7 +3468,22 @@ async function handleAddFile(e) {
         return;
     }
 
-    const title = titleInput.value.trim() || file.name;
+    const originalName = file.name;
+    const extIndex = originalName.lastIndexOf('.');
+    const ext = extIndex !== -1 ? originalName.substring(extIndex) : '';
+
+    let userTitle = titleInput.value.trim();
+    let finalFilename = '';
+
+    if (!userTitle) {
+        finalFilename = originalName;
+    } else {
+        if (ext && !userTitle.toLowerCase().endsWith(ext.toLowerCase())) {
+            finalFilename = userTitle + ext;
+        } else {
+            finalFilename = userTitle;
+        }
+    }
 
     if (submitBtn) {
         submitBtn.disabled = true;
@@ -3449,7 +3502,7 @@ async function handleAddFile(e) {
                     'Authorization': `Bearer ${state.token}`
                 },
                 body: JSON.stringify({
-                    filename: title,
+                    filename: finalFilename,
                     fileData: fileDataUrl,
                     fileSize: file.size
                 })
@@ -3475,6 +3528,7 @@ async function handleAddFile(e) {
     };
     reader.readAsDataURL(file);
 }
+
 
 async function deleteAnonFile(fileId) {
     if (!confirm('Möchtest du diese Datei wirklich löschen?')) return;
@@ -3520,6 +3574,8 @@ window.closeAnonFilesModal = closeAnonFilesModal;
 window.toggleAddFileForm = toggleAddFileForm;
 window.handleAddFile = handleAddFile;
 window.deleteAnonFile = deleteAnonFile;
+window.downloadAnonFile = downloadAnonFile;
+
 
 
 window.handleAddLink = handleAddLink;
