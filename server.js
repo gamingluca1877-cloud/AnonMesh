@@ -13,6 +13,10 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
+const https = require('https');
+const crypto = require('crypto');
+
+
 
 
 const APP_PORT = process.env.PORT || 3000;
@@ -78,113 +82,119 @@ function rateLimiter(maxAttempts = 5, windowMs = 15 * 60 * 1000) {
 }
 
 // ----------------------------------------------------
-// 3. AUTOMATED EMERGENCY CIRCUIT BREAKER (TRAFFIC BURST AUTO-OFFLINE ENGINE)
+
+// 3. SLIDING-WINDOW RPS COUNTER & RENDER API KILL SWITCH (NOT-AUS ENGINE)
 // ----------------------------------------------------
-let IS_SERVER_AUTO_OFFLINE = false;
-let autoOfflineReason = '';
-let currentSecondRequestCount = 0;
-let consecutiveBurstSeconds = 0;
-const TRAFFIC_BURST_RPS_LIMIT = 90; // >90 requests/sec triggers safety shutdown
+app.set('trust proxy', 1);
 
-const BURST_DURATION_THRESHOLD_SEC = 3; // 3 consecutive seconds of high burst
+const DDOS_KILL_SWITCH_THRESHOLD_RPS = 90; // >90 RPS triggers instant Render API suspend
+let isKillSwitchTriggered = false;
 
-setInterval(() => {
-    if (!IS_SERVER_AUTO_OFFLINE) {
-        if (currentSecondRequestCount >= TRAFFIC_BURST_RPS_LIMIT) {
-            consecutiveBurstSeconds++;
-            if (consecutiveBurstSeconds >= BURST_DURATION_THRESHOLD_SEC) {
-                IS_SERVER_AUTO_OFFLINE = true;
-                autoOfflineReason = `🚨 AUTOMATISCHE NOTABSCHALTUNG: Extrem hohe Netzwerklast erkannt (${currentSecondRequestCount} Anfragen/Sekunde über ${consecutiveBurstSeconds}s). Server wurde zum Selbstschutz offline genommen.`;
-                console.warn(`[🚨 CIRCUIT BREAKER ACTIVATED] ${autoOfflineReason}`);
-            }
-        } else {
-            consecutiveBurstSeconds = 0;
+// Performant 1000ms Sliding Window Ring Buffer (10 buckets of 100ms each)
+const BUCKET_COUNT = 10;
+const BUCKET_SIZE_MS = 100;
+const rpsBuckets = new Array(BUCKET_COUNT).fill(0);
+const rpsBucketTimes = new Array(BUCKET_COUNT).fill(0);
+
+function getSlidingWindowRps() {
+    const now = Date.now();
+    let totalRequests = 0;
+    for (let i = 0; i < BUCKET_COUNT; i++) {
+        if (now - rpsBucketTimes[i] <= 1000) {
+            totalRequests += rpsBuckets[i];
         }
     }
-    currentSecondRequestCount = 0;
-}, 1000);
+    return totalRequests;
+}
 
-// Global Middleware to enforce Emergency Offline Mode & Track Requests
+function recordIncomingRequest() {
+    const now = Date.now();
+    const bucketIndex = Math.floor((now / BUCKET_SIZE_MS) % BUCKET_COUNT);
+    if (now - rpsBucketTimes[bucketIndex] > BUCKET_SIZE_MS * BUCKET_COUNT) {
+        rpsBuckets[bucketIndex] = 0;
+        rpsBucketTimes[bucketIndex] = now;
+    }
+    rpsBuckets[bucketIndex]++;
+    return getSlidingWindowRps();
+}
+
+async function triggerRenderApiSuspend(measuredRps) {
+    if (isKillSwitchTriggered) return;
+    isKillSwitchTriggered = true;
+
+    const renderApiKey = process.env.RENDER_API_KEY;
+    const renderServiceId = process.env.RENDER_SERVICE_ID;
+
+    const logMessage = `🚨 NOT-AUS AUSGELÖST: ${measuredRps} RPS gemessen (Schwellenwert: ${DDOS_KILL_SWITCH_THRESHOLD_RPS} RPS). Server wird via Render API suspendiert.`;
+    console.error(`\n====================================================`);
+    console.error(logMessage);
+    console.error(`====================================================\n`);
+
+    if (renderApiKey && renderServiceId) {
+        console.log(`[🚀 RENDER API] Sende Suspend-Request an Service ID: ${renderServiceId}...`);
+        try {
+            const reqOptions = {
+                hostname: 'api.render.com',
+                port: 443,
+                path: `/v1/services/${renderServiceId}/suspend`,
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${renderApiKey}`,
+                    'Content-Type': 'application/json',
+                    'Content-Length': 0
+                }
+            };
+
+            const apiReq = https.request(reqOptions, (apiRes) => {
+                let resData = '';
+                apiRes.on('data', chunk => resData += chunk);
+                apiRes.on('end', () => {
+                    console.log(`[✅ RENDER API RESPONSE] Status ${apiRes.statusCode}: ${resData}`);
+                    console.error('[🚨 GRACEFUL EXIT] Beende Server-Prozess sauber (process.exit(1))...');
+                    setTimeout(() => process.exit(1), 500);
+                });
+            });
+
+            apiReq.on('error', (err) => {
+                console.error('[-] Render API Request Error:', err.message);
+                console.error('[🚨 GRACEFUL EXIT] Beende Server-Prozess sauber (process.exit(1))...');
+                setTimeout(() => process.exit(1), 500);
+            });
+
+            apiReq.end();
+
+        } catch (err) {
+            console.error('[-] Suspend-Routine Fehler:', err);
+            process.exit(1);
+        }
+    } else {
+        console.warn('[-] HINWEIS: RENDER_API_KEY oder RENDER_SERVICE_ID nicht in Umgebungsvariablen definiert.');
+        console.warn('[-] Beende Prozess sauber (process.exit(1))...');
+        setTimeout(() => process.exit(1), 500);
+    }
+}
+
+// Global High-Performance Middleware
 app.use((req, res, next) => {
-    currentSecondRequestCount++;
+    const currentRps = recordIncomingRequest();
 
-    // Allow Admin Restore Endpoint & Status Route
+    // Allow Admin Restore Endpoint & Emergency Status Endpoint
     if (req.path === '/api/admin/restore-online' || req.path === '/api/admin/emergency-status') {
         return next();
     }
 
-    if (IS_SERVER_AUTO_OFFLINE) {
-        return res.status(503).send(`
-            <!DOCTYPE html>
-            <html lang="de">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>AnonMesh - Notabschaltung</title>
-                <style>
-                    body { background-color: #120c0d; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; text-align: center; }
-                    .card { background: #1a1214; border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 16px; padding: 32px 24px; max-width: 480px; width: 100%; box-shadow: 0 0 35px rgba(239, 68, 68, 0.35); }
-                    h1 { color: #ef4444; font-size: 1.5rem; margin-bottom: 12px; }
-                    p { color: #a39498; font-size: 0.92rem; line-height: 1.5; margin-bottom: 20px; }
-                    input { width: 100%; padding: 12px; border-radius: 8px; background: #0f090a; border: 1px solid rgba(239, 68, 68, 0.4); color: #f97316; font-family: monospace; font-size: 1rem; box-sizing: border-box; margin-bottom: 12px; outline: none; }
-                    button { width: 100%; padding: 12px; border-radius: 8px; background: linear-gradient(135deg, #ea580c, #ef4444); color: #fff; font-weight: 700; font-size: 0.95rem; border: none; cursor: pointer; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4); }
-                </style>
-            </head>
-            <body>
-                <div class="card">
-                    <h1>🚨 SERVER TEMPORÄR OFFLINE 🚨</h1>
-                    <p>${autoOfflineReason || 'Der Server wurde wegen außergewöhnlich hoher Auslastung automatisch geschützt und offline genommen.'}</p>
-                    <p style="font-size:0.82rem; color:#746468;">Admin-Freischaltung erforderlich:</p>
-                    <input type="password" id="passcode" placeholder="Admin-Passwort eingeben">
-                    <button onclick="restoreOnline()">Server Manuell Online Schalten 🔓</button>
-                </div>
-                <script>
-                    async function restoreOnline() {
-                        const code = document.getElementById('passcode').value;
-                        if (!code) return alert('Bitte Passwort eingeben.');
-                        try {
-                            const res = await fetch('/api/admin/restore-online', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ passcode: code })
-                            });
-                            const data = await res.json();
-                            if (res.ok) {
-                                alert('✅ Server erfolgreich wieder Online geschaltet!');
-                                window.location.reload();
-                            } else {
-                                alert(data.error || 'Falsches Passwort!');
-                            }
-                        } catch (e) { alert('Verbindungsfehler.'); }
-                    }
-                </script>
-            </body>
-            </html>
-        `);
+    // Check DDoS Kill Switch Condition
+    if (currentRps >= DDOS_KILL_SWITCH_THRESHOLD_RPS && !isKillSwitchTriggered) {
+        triggerRenderApiSuspend(currentRps);
     }
+
+    if (isKillSwitchTriggered) {
+        return res.status(503).json({
+            error: `🚨 NOT-AUS AKTIVIERT: Server wurde wegen DDoS-Spitze (${currentRps} RPS) via Render API suspendiert!`
+        });
+    }
+
     next();
-});
-
-// Admin restore & emergency status endpoints
-app.post('/api/admin/restore-online', (req, res) => {
-    const { passcode } = req.body;
-    const ADMIN_PASSCODE_HASH = '31c3e051f8eec0bf2978d9b3e95f0cd0ae340d19db23385d12d0e4c44febd29b';
-    const inputHash = crypto.createHash('sha256').update(String(passcode || '')).digest('hex');
-
-    if (inputHash === ADMIN_PASSCODE_HASH) {
-        IS_SERVER_AUTO_OFFLINE = false;
-        autoOfflineReason = '';
-        console.log('[+] SERVER MANUALLY RESTORED ONLINE BY ADMIN!');
-        return res.json({ message: 'Server erfolgreich wieder online geschaltet!' });
-    }
-    res.status(403).json({ error: 'Ungültiges Admin-Passwort!' });
-});
-
-app.get('/api/admin/emergency-status', (req, res) => {
-    res.json({
-        is_auto_offline: IS_SERVER_AUTO_OFFLINE,
-        reason: autoOfflineReason
-    });
 });
 
 // ----------------------------------------------------
@@ -322,9 +332,9 @@ async function seedDefaultAccounts() {
 // Encrypted Complete Database Backup Engine (AES-256-GCM)
 // Backs up Users, Contacts & Messages so NO CHATS ARE EVER LOST!
 // ----------------------------------------------------
-const crypto = require('crypto');
 
 const BACKUP_ENC_FILE = path.join(DATA_DIR, 'chat_backup.enc');
+
 const ALT_BACKUP_ENC_FILE = path.join(__dirname, 'chat_backup.enc');
 
 // Master encryption key derived from JWT_SECRET
