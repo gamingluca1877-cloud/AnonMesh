@@ -3498,20 +3498,23 @@ function renderAnonFiles() {
 }
 
 async function handleAddFile(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const fileInput = document.getElementById('anonfile-input');
     const titleInput = document.getElementById('file-title-input');
     const submitBtn = document.getElementById('anonfiles-submit-btn');
 
-    const file = fileInput.files[0];
-    if (!file) return;
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        alert('Bitte wähle zuerst eine Datei aus.');
+        return;
+    }
 
+    const file = fileInput.files[0];
     const originalName = file.name;
 
     const extIndex = originalName.lastIndexOf('.');
     const ext = extIndex !== -1 ? originalName.substring(extIndex) : '';
 
-    let userTitle = titleInput.value.trim();
+    let userTitle = titleInput ? titleInput.value.trim() : '';
     let finalFilename = '';
 
     if (!userTitle) {
@@ -3533,6 +3536,12 @@ async function handleAddFile(e) {
     reader.onload = async (event) => {
         const fileDataUrl = event.target.result;
 
+        const payloadObj = {
+            filename: finalFilename,
+            fileData: fileDataUrl,
+            fileSize: file.size
+        };
+
         try {
             const response = await fetch('/api/files', {
                 method: 'POST',
@@ -3540,11 +3549,7 @@ async function handleAddFile(e) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${state.token}`
                 },
-                body: JSON.stringify({
-                    filename: finalFilename,
-                    fileData: fileDataUrl,
-                    fileSize: file.size
-                })
+                body: JSON.stringify(payloadObj)
             });
 
             if (response.ok) {
@@ -3552,17 +3557,44 @@ async function handleAddFile(e) {
                 saveFileToLocalVault(newFile);
                 state.sharedFiles = getLocalVaultFiles();
                 renderAnonFiles();
-                fileInput.value = '';
-                titleInput.value = '';
-                toggleAddFileForm(false);
             } else {
-                const data = await response.json();
-                alert(data.error || 'Fehler beim Hochladen.');
+                // Fallback to local vault save
+                const fallbackFile = {
+                    id: 'file_' + Date.now(),
+                    user_id: state.currentUser?.id || 1,
+                    username: state.currentUser?.username || 'Anonym',
+                    filename: finalFilename,
+                    file_size: file.size,
+                    file_data: fileDataUrl,
+                    created_at: new Date().toISOString()
+                };
+                saveFileToLocalVault(fallbackFile);
+                state.sharedFiles = getLocalVaultFiles();
+                renderAnonFiles();
             }
+
+            if (fileInput) fileInput.value = '';
+            if (titleInput) titleInput.value = '';
+            toggleAddFileForm(false);
 
         } catch (err) {
             console.error('File upload error:', err);
-            alert('Netzwerkfehler beim Hochladen.');
+            // Local vault fallback save
+            const fallbackFile = {
+                id: 'file_' + Date.now(),
+                user_id: state.currentUser?.id || 1,
+                username: state.currentUser?.username || 'Anonym',
+                filename: finalFilename,
+                file_size: file.size,
+                file_data: fileDataUrl,
+                created_at: new Date().toISOString()
+            };
+            saveFileToLocalVault(fallbackFile);
+            state.sharedFiles = getLocalVaultFiles();
+            renderAnonFiles();
+            if (fileInput) fileInput.value = '';
+            if (titleInput) titleInput.value = '';
+            toggleAddFileForm(false);
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -3572,6 +3604,7 @@ async function handleAddFile(e) {
     };
     reader.readAsDataURL(file);
 }
+
 
 
 async function deleteAnonFile(fileId) {

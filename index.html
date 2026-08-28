@@ -649,14 +649,15 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
                     📤 Neue Datei hochladen (EXE, ZIP, RAR, PDF, Bilder etc.)
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="text" id="file-title-input" placeholder="Dateiname / Beschreibung (z.B. HackTool.zip)..." required style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none;">
-                    <input type="file" id="anonfile-input" required style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem;">
+                    <input type="file" id="anonfile-input" required onchange="if(this.files[0] && !document.getElementById('file-title-input').value) document.getElementById('file-title-input').value = this.files[0].name;" style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; cursor: pointer;">
+                    <input type="text" id="file-title-input" placeholder="Anzeigename (Optional, standardmäßig Dateiname)..." style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none;">
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
                     <button type="button" class="btn" style="background: #2b2d31; color: #dbdee1; padding: 8px 16px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer;" onclick="toggleAddFileForm()">Abbrechen</button>
                     <button type="submit" id="anonfiles-submit-btn" class="btn" style="background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; padding: 8px 18px; border-radius: 6px; font-weight: 700; border: none; cursor: pointer;">📤 Hochladen</button>
                 </div>
             </form>
+
 
             <!-- Files List Container -->
             <div id="anonfiles-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
