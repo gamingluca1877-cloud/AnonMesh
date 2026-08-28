@@ -252,26 +252,11 @@ function initMatrixRain() {
 
 
 // ----------------------------------------------------
-// MAXIMUM SECURITY INACTIVITY AUTO-LOCK (5 MINUTE TIMEOUT)
+// INACTIVITY TIMER DISABLED BY USER REQUEST
+// User remains logged in as long as tab/window is open.
+// Logout only triggers on page reload / tab close.
 // ----------------------------------------------------
-let inactivityTimer = null;
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-function resetInactivityTimer() {
-    clearTimeout(inactivityTimer);
-    inactivityTimer = setTimeout(() => {
-        const appView = document.getElementById('app-view');
-        if (appView && !appView.classList.contains('hidden')) {
-            console.warn('🔒 AUTO-LOCK: Inactivity detected. Locking interface.');
-            checkSiteAccess();
-        }
-    }, IDLE_TIMEOUT_MS);
-}
-
-['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
-    document.addEventListener(evt, resetInactivityTimer, { passive: true });
-});
-resetInactivityTimer();
 
 // ----------------------------------------------------
 // SOURCE CODE & CONTENT PROTECTION ENGINE
