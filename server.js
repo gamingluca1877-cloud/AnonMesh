@@ -986,62 +986,62 @@ app.post('/api/link-folders', authenticateToken, (req, res) => {
     });
 });
 
-// DELETE /api/link-folders/:id - Delete a folder (Strictly Creator Only!)
+// DELETE /api/link-folders/:id - Delete a folder (STRICTLY ANONYM1 ONLY!)
 app.delete('/api/link-folders/:id', authenticateToken, (req, res) => {
     const folderId = req.params.id;
-    const userId = req.user.id;
+    const isAnonym1 = req.user && (
+        (req.user.username && req.user.username.toLowerCase() === 'anonym1') ||
+        Number(req.user.id) === 1
+    );
+
+    if (!isAnonym1) {
+        return res.status(403).json({ error: 'Nur Anonym1 darf Ordner löschen.' });
+    }
 
     db.get("SELECT * FROM shared_folders WHERE id = ?", [folderId], (err, folder) => {
         if (err || !folder) {
             return res.status(404).json({ error: 'Ordner nicht gefunden.' });
         }
 
-        if (folder.created_by && Number(folder.created_by) !== Number(userId)) {
-            return res.status(403).json({ error: 'Nur der Ersteller darf diesen Ordner löschen.' });
-        }
+        const folderName = folder.name.toUpperCase();
 
         db.run("DELETE FROM shared_folders WHERE id = ?", [folderId], function(err) {
             if (err) {
                 return res.status(500).json({ error: 'Fehler beim Löschen des Ordners.' });
             }
 
-            // Clean up links in this deleted folder
-            db.run("DELETE FROM shared_links WHERE UPPER(category) = ?", [folder.name.toUpperCase()]);
+            db.run("DELETE FROM shared_links WHERE UPPER(category) = ?", [folderName]);
 
             saveUsersBackup();
-            io.emit('folder_deleted', { id: folderId, name: folder.name });
-            res.json({ message: 'Ordner gelöscht.' });
+            io.emit('folder_deleted', { id: folderId, name: folderName });
+            res.json({ message: 'Ordner endgültig gelöscht.' });
         });
     });
 });
 
-// DELETE /api/link-folders/by-name/:name - Delete a folder by name (Strictly Creator Only!)
+// DELETE /api/link-folders/by-name/:name - Delete a folder by name (STRICTLY ANONYM1 ONLY!)
 app.delete('/api/link-folders/by-name/:name', authenticateToken, (req, res) => {
     const rawName = decodeURIComponent(req.params.name || '').trim();
     if (!rawName) return res.status(400).json({ error: 'Ordnername erforderlich.' });
     const folderName = rawName.toUpperCase();
-    const userId = req.user.id;
 
-    db.get("SELECT * FROM shared_folders WHERE UPPER(name) = ?", [folderName], (err, folder) => {
-        if (err || !folder) {
-            db.run("DELETE FROM shared_links WHERE UPPER(category) = ? AND user_id = ?", [folderName, userId]);
-            saveUsersBackup();
-            io.emit('folder_deleted', { name: folderName });
-            return res.json({ message: 'Ordner gelöscht.' });
-        }
+    const isAnonym1 = req.user && (
+        (req.user.username && req.user.username.toLowerCase() === 'anonym1') ||
+        Number(req.user.id) === 1
+    );
 
-        if (folder.created_by && Number(folder.created_by) !== Number(userId)) {
-            return res.status(403).json({ error: 'Nur der Ersteller darf diesen Ordner löschen.' });
-        }
+    if (!isAnonym1) {
+        return res.status(403).json({ error: 'Nur Anonym1 darf Ordner löschen.' });
+    }
 
-        db.run("DELETE FROM shared_folders WHERE UPPER(name) = ?", [folderName], function(err) {
-            db.run("DELETE FROM shared_links WHERE UPPER(category) = ?", [folderName]);
-            saveUsersBackup();
-            io.emit('folder_deleted', { id: folder.id, name: folderName });
-            res.json({ message: 'Ordner gelöscht.' });
-        });
+    db.run("DELETE FROM shared_folders WHERE UPPER(name) = ?", [folderName], function(err) {
+        db.run("DELETE FROM shared_links WHERE UPPER(category) = ?", [folderName]);
+        saveUsersBackup();
+        io.emit('folder_deleted', { name: folderName });
+        res.json({ message: 'Ordner endgültig gelöscht.' });
     });
 });
+
 
 
 // POST /api/links - Add a new shared link

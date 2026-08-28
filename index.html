@@ -610,9 +610,11 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
             </div>
 
             <!-- Modal Actions Footer -->
-            <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; margin-top: 16px; text-align: right;">
+            <div style="border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 14px; margin-top: 16px; display: flex; align-items: center; justify-content: space-between;">
                 <button type="button" class="btn btn-primary" style="padding: 8px 24px; border-radius: 20px; background: #313338; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;" onclick="closeSharedLinksModal()">Schließen</button>
+                <div id="delete-active-folder-container"></div>
             </div>
+
 
         </div>
     </div>

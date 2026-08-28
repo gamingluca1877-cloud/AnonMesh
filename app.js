@@ -888,9 +888,25 @@ function initSocketConnection() {
         loadLinkFolders();
     });
 
-    state.socket.on('folder_deleted', () => {
+    state.socket.on('folder_deleted', (data) => {
+        if (data && data.name) {
+            const delName = data.name.toUpperCase();
+            let vault = getLocalVaultFolders();
+            vault = vault.filter(f => (typeof f === 'string' ? f : f.name).toUpperCase() !== delName);
+            localStorage.setItem('anonmesh_vault_folders', JSON.stringify(vault));
+
+            let linkVault = getLocalVaultLinks();
+            linkVault = linkVault.filter(l => (l.category || 'DDOS').toUpperCase() !== delName);
+            localStorage.setItem('anonmesh_vault_links', JSON.stringify(linkVault));
+
+            if (activeLinkCategory.toUpperCase() === delName) {
+                activeLinkCategory = 'DDOS';
+            }
+        }
         loadLinkFolders();
+        loadSharedLinks();
     });
+
 
     state.socket.on('link_added', () => {
         loadSharedLinks();
@@ -2909,8 +2925,7 @@ function renderLinkFolderTabs() {
     bar.innerHTML = loadedSharedFolderObjects.map(folderObj => {
         const folder = folderObj.name;
         const isActive = folder.toUpperCase() === activeLinkCategory.toUpperCase();
-        const isFolderOwner = !folderObj.created_by || Number(folderObj.created_by) === Number(currentUserId);
-
+        
         const activeBg = 'linear-gradient(135deg, #ef4444, #f97316)';
         
         const style = isActive
@@ -2918,16 +2933,9 @@ function renderLinkFolderTabs() {
             : `background: #2b2d31; color: #b5bac1; border: 1px solid rgba(255, 255, 255, 0.08); font-weight: 700;`;
 
         return `
-            <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
-                <button type="button" onclick="switchLinkCategory('${escapeHtml(folder)}')" style="padding: 8px 14px; border-radius: 8px; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: all 0.2s; ${style}">
-                    <span>📁 ${escapeHtml(folder)}</span>
-                </button>
-                ${isFolderOwner ? `
-                    <button type="button" onclick="deleteLinkFolder(${folderObj.id || 0}, '${escapeHtml(folder)}')" title="Nur du als Ersteller kannst diesen Ordner löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.78rem;">
-                        ✕
-                    </button>
-                ` : ''}
-            </div>
+            <button type="button" onclick="switchLinkCategory('${escapeHtml(folder)}')" style="padding: 8px 16px; border-radius: 8px; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: all 0.2s; flex-shrink: 0; ${style}">
+                <span>📁 ${escapeHtml(folder)}</span>
+            </button>
         `;
     }).join('');
 
@@ -2935,15 +2943,50 @@ function renderLinkFolderTabs() {
     if (categoryBadge) {
         categoryBadge.textContent = `Ordner: ${activeLinkCategory}`;
     }
+
+    renderDeleteActiveFolderButton();
 }
 
-async function deleteLinkFolder(id, name) {
-    if (!name) return;
-    if (!confirm(`Möchtest du den Ordner "${name}" und alle enthaltenen Links wirklich löschen?`)) return;
+function renderDeleteActiveFolderButton() {
+    const container = document.getElementById('delete-active-folder-container');
+    if (!container) return;
+
+    const isAnonym1 = state.currentUser && (
+        (state.currentUser.username && state.currentUser.username.toLowerCase() === 'anonym1') ||
+        Number(state.currentUser.id) === 1
+    );
+
+    if (isAnonym1 && activeLinkCategory) {
+        container.innerHTML = `
+            <button type="button" onclick="deleteCurrentActiveFolder()" style="background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; font-weight: 800; font-size: 0.85rem; padding: 8px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25); transition: background 0.2s;" onmouseenter="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseleave="this.style.background='rgba(239, 68, 68, 0.18)'">
+                <span>🗑️ Ordner "${escapeHtml(activeLinkCategory)}" löschen</span>
+            </button>
+        `;
+    } else {
+        container.innerHTML = '';
+    }
+}
+
+async function deleteCurrentActiveFolder() {
+    if (!activeLinkCategory) return;
+    const name = activeLinkCategory;
+
+    const isAnonym1 = state.currentUser && (
+        (state.currentUser.username && state.currentUser.username.toLowerCase() === 'anonym1') ||
+        Number(state.currentUser.id) === 1
+    );
+
+    if (!isAnonym1) {
+        alert('Nur Anonym1 darf Ordner löschen.');
+        return;
+    }
+
+    if (!confirm(`Möchtest du den Ordner "${name}" und alle enthaltenen Links wirklich endgültig löschen?`)) return;
 
     try {
-        if (id && id > 0) {
-            await fetch(`/api/link-folders/${id}`, {
+        const folderObj = loadedSharedFolderObjects.find(f => f.name.toUpperCase() === name.toUpperCase());
+        if (folderObj && folderObj.id && folderObj.id > 0) {
+            await fetch(`/api/link-folders/${folderObj.id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${state.token}` }
             });
@@ -2958,13 +3001,24 @@ async function deleteLinkFolder(id, name) {
         vault = vault.filter(f => (typeof f === 'string' ? f : f.name).toUpperCase() !== name.toUpperCase());
         localStorage.setItem('anonmesh_vault_folders', JSON.stringify(vault));
 
+        let linkVault = getLocalVaultLinks();
+        linkVault = linkVault.filter(l => (l.category || 'DDOS').toUpperCase() !== name.toUpperCase());
+        localStorage.setItem('anonmesh_vault_links', JSON.stringify(linkVault));
+
         activeLinkCategory = 'DDOS';
         loadLinkFolders();
+        loadSharedLinks();
     } catch (e) {
-        console.warn('deleteLinkFolder error:', e);
+        console.warn('deleteCurrentActiveFolder error:', e);
         loadLinkFolders();
     }
 }
+
+async function deleteLinkFolder(id, name) {
+    return deleteCurrentActiveFolder();
+}
+
+
 
 
 
