@@ -77,7 +77,115 @@ function rateLimiter(maxAttempts = 5, windowMs = 15 * 60 * 1000) {
     };
 }
 
+// ----------------------------------------------------
+// 3. AUTOMATED EMERGENCY CIRCUIT BREAKER (TRAFFIC BURST AUTO-OFFLINE ENGINE)
+// ----------------------------------------------------
+let IS_SERVER_AUTO_OFFLINE = false;
+let autoOfflineReason = '';
+let currentSecondRequestCount = 0;
+let consecutiveBurstSeconds = 0;
+const TRAFFIC_BURST_RPS_LIMIT = 90; // >90 requests/sec triggers safety shutdown
 
+const BURST_DURATION_THRESHOLD_SEC = 3; // 3 consecutive seconds of high burst
+
+setInterval(() => {
+    if (!IS_SERVER_AUTO_OFFLINE) {
+        if (currentSecondRequestCount >= TRAFFIC_BURST_RPS_LIMIT) {
+            consecutiveBurstSeconds++;
+            if (consecutiveBurstSeconds >= BURST_DURATION_THRESHOLD_SEC) {
+                IS_SERVER_AUTO_OFFLINE = true;
+                autoOfflineReason = `🚨 AUTOMATISCHE NOTABSCHALTUNG: Extrem hohe Netzwerklast erkannt (${currentSecondRequestCount} Anfragen/Sekunde über ${consecutiveBurstSeconds}s). Server wurde zum Selbstschutz offline genommen.`;
+                console.warn(`[🚨 CIRCUIT BREAKER ACTIVATED] ${autoOfflineReason}`);
+            }
+        } else {
+            consecutiveBurstSeconds = 0;
+        }
+    }
+    currentSecondRequestCount = 0;
+}, 1000);
+
+// Global Middleware to enforce Emergency Offline Mode & Track Requests
+app.use((req, res, next) => {
+    currentSecondRequestCount++;
+
+    // Allow Admin Restore Endpoint & Status Route
+    if (req.path === '/api/admin/restore-online' || req.path === '/api/admin/emergency-status') {
+        return next();
+    }
+
+    if (IS_SERVER_AUTO_OFFLINE) {
+        return res.status(503).send(`
+            <!DOCTYPE html>
+            <html lang="de">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>AnonMesh - Notabschaltung</title>
+                <style>
+                    body { background-color: #120c0d; color: #f8fafc; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 20px; text-align: center; }
+                    .card { background: #1a1214; border: 1px solid rgba(239, 68, 68, 0.5); border-radius: 16px; padding: 32px 24px; max-width: 480px; width: 100%; box-shadow: 0 0 35px rgba(239, 68, 68, 0.35); }
+                    h1 { color: #ef4444; font-size: 1.5rem; margin-bottom: 12px; }
+                    p { color: #a39498; font-size: 0.92rem; line-height: 1.5; margin-bottom: 20px; }
+                    input { width: 100%; padding: 12px; border-radius: 8px; background: #0f090a; border: 1px solid rgba(239, 68, 68, 0.4); color: #f97316; font-family: monospace; font-size: 1rem; box-sizing: border-box; margin-bottom: 12px; outline: none; }
+                    button { width: 100%; padding: 12px; border-radius: 8px; background: linear-gradient(135deg, #ea580c, #ef4444); color: #fff; font-weight: 700; font-size: 0.95rem; border: none; cursor: pointer; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4); }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h1>🚨 SERVER TEMPORÄR OFFLINE 🚨</h1>
+                    <p>${autoOfflineReason || 'Der Server wurde wegen außergewöhnlich hoher Auslastung automatisch geschützt und offline genommen.'}</p>
+                    <p style="font-size:0.82rem; color:#746468;">Admin-Freischaltung erforderlich:</p>
+                    <input type="password" id="passcode" placeholder="Admin-Passwort eingeben">
+                    <button onclick="restoreOnline()">Server Manuell Online Schalten 🔓</button>
+                </div>
+                <script>
+                    async function restoreOnline() {
+                        const code = document.getElementById('passcode').value;
+                        if (!code) return alert('Bitte Passwort eingeben.');
+                        try {
+                            const res = await fetch('/api/admin/restore-online', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ passcode: code })
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                                alert('✅ Server erfolgreich wieder Online geschaltet!');
+                                window.location.reload();
+                            } else {
+                                alert(data.error || 'Falsches Passwort!');
+                            }
+                        } catch (e) { alert('Verbindungsfehler.'); }
+                    }
+                </script>
+            </body>
+            </html>
+        `);
+    }
+    next();
+});
+
+// Admin restore & emergency status endpoints
+app.post('/api/admin/restore-online', (req, res) => {
+    const { passcode } = req.body;
+    const ADMIN_PASSCODE_HASH = '31c3e051f8eec0bf2978d9b3e95f0cd0ae340d19db23385d12d0e4c44febd29b';
+    const inputHash = crypto.createHash('sha256').update(String(passcode || '')).digest('hex');
+
+    if (inputHash === ADMIN_PASSCODE_HASH) {
+        IS_SERVER_AUTO_OFFLINE = false;
+        autoOfflineReason = '';
+        console.log('[+] SERVER MANUALLY RESTORED ONLINE BY ADMIN!');
+        return res.json({ message: 'Server erfolgreich wieder online geschaltet!' });
+    }
+    res.status(403).json({ error: 'Ungültiges Admin-Passwort!' });
+});
+
+app.get('/api/admin/emergency-status', (req, res) => {
+    res.json({
+        is_auto_offline: IS_SERVER_AUTO_OFFLINE,
+        reason: autoOfflineReason
+    });
+});
 
 // ----------------------------------------------------
 // Database Setup & Initialization (SQLite & Persistent Storage)
