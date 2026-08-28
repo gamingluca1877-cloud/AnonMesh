@@ -867,7 +867,13 @@ input, textarea {
 
 .e2ee-short { display: none; }
 
+/* GLOBALLY REMOVE VOICE CALL BUTTON PER USER REQUEST */
+#start-voice-call-btn, .chat-header-actions {
+    display: none !important;
+}
+
 /* RESPONSIVE DESIGN (Mobile View & Mobile Browser Heights - 100% Symmetrical 1-to-1 PC Match) */
+
 @media (max-width: 768px) {
     html, body {
         height: 100dvh !important;
