@@ -793,8 +793,20 @@ function initSocketConnection() {
         updateContactLastMessage(msg.receiver_id, msg.content, msg.timestamp);
     });
 
+    state.socket.on('file_uploaded', (newFile) => {
+        state.sharedFiles = state.sharedFiles || [];
+        state.sharedFiles.unshift(newFile);
+        renderAnonFiles();
+    });
+
+    state.socket.on('file_deleted', ({ id }) => {
+        state.sharedFiles = (state.sharedFiles || []).filter(f => Number(f.id) !== Number(id));
+        renderAnonFiles();
+    });
+
 
     // Incoming Private Message
+
     state.socket.on('private_message', async (msg) => {
         saveMessageToLocalVault(msg);
         playMessageSound();
@@ -3279,6 +3291,207 @@ async function deleteSharedLink(id, title) {
     }
 }
 
+// ----------------------------------------------------
+// ANONFILES CLOUD STORAGE LOGIC (EXE, ZIP, ANY FILE TYPE)
+// ----------------------------------------------------
+state.sharedFiles = [];
+
+function openAnonFilesModal() {
+    const modal = document.getElementById('anonfiles-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+    }
+    loadAnonFiles();
+}
+
+function closeAnonFilesModal() {
+    const modal = document.getElementById('anonfiles-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+    toggleAddFileForm(false);
+}
+
+function toggleAddFileForm(forceState) {
+    const form = document.getElementById('add-file-form');
+    if (!form) return;
+    if (typeof forceState === 'boolean') {
+        if (forceState) form.classList.remove('hidden');
+        else form.classList.add('hidden');
+    } else {
+        form.classList.toggle('hidden');
+    }
+}
+
+function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+async function loadAnonFiles() {
+    const list = document.getElementById('anonfiles-list');
+    if (list && state.sharedFiles.length === 0) {
+        list.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.85rem;">Dateien werden geladen...</div>';
+    }
+
+    try {
+        const response = await fetch('/api/files', {
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (response.ok) {
+            const files = await response.json();
+            state.sharedFiles = files || [];
+            try {
+                localStorage.setItem('anonmesh_vault_shared_files', JSON.stringify(state.sharedFiles));
+            } catch(e) {}
+        }
+    } catch (e) {
+        console.warn('loadAnonFiles network error:', e);
+        try {
+            const cached = localStorage.getItem('anonmesh_vault_shared_files');
+            if (cached) state.sharedFiles = JSON.parse(cached);
+        } catch(e2) {}
+    }
+
+    renderAnonFiles();
+}
+
+function renderAnonFiles() {
+    const list = document.getElementById('anonfiles-list');
+    if (!list) return;
+
+    if (!state.sharedFiles || state.sharedFiles.length === 0) {
+        list.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 28px 16px; font-size: 0.88rem; background: #231618; border-radius: 12px; border: 1px dashed rgba(234, 88, 12, 0.3);">
+                <span style="font-size: 2rem; display: block; margin-bottom: 8px;">📁</span>
+                Noch keine Dateien im Cloud-Speicher. Lade als Erster eine Datei hoch!
+            </div>
+        `;
+        return;
+    }
+
+    const currentUserId = Number(state.currentUser?.id);
+
+    list.innerHTML = state.sharedFiles.map(file => {
+        const isOwner = Number(file.user_id) === currentUserId;
+        const sizeStr = formatBytes(file.file_size);
+        const timeStr = formatTime(file.created_at || new Date());
+        
+        let icon = '📦';
+        const lowerName = file.filename.toLowerCase();
+        if (lowerName.endsWith('.exe')) icon = '⚙️';
+        else if (lowerName.endsWith('.zip') || lowerName.endsWith('.rar') || lowerName.endsWith('.7z')) icon = '📦';
+        else if (lowerName.endsWith('.pdf')) icon = '📄';
+        else if (lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) icon = '🖼️';
+        else if (lowerName.endsWith('.mp4') || lowerName.endsWith('.mkv')) icon = '🎬';
+
+        const deleteBtnHtml = isOwner ? `
+            <button type="button" onclick="deleteAnonFile(${file.id})" title="Datei löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; font-weight: 700; font-size: 0.8rem; padding: 6px 10px; border-radius: 8px; cursor: pointer; transition: background 0.2s;" onmouseenter="this.style.background='rgba(239, 68, 68, 0.3)'" onmouseleave="this.style.background='rgba(239, 68, 68, 0.15)'">
+                🗑️
+            </button>
+        ` : '';
+
+        return `
+            <div style="background: #231618; border: 1px solid rgba(234, 88, 12, 0.25); border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px; overflow: hidden; flex: 1;">
+                    <span style="font-size: 1.6rem; flex-shrink: 0;">${icon}</span>
+                    <div style="display: flex; flex-direction: column; overflow: hidden;">
+                        <span style="font-weight: 700; font-size: 0.92rem; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</span>
+                        <span style="font-size: 0.76rem; color: var(--text-secondary);">Von ${escapeHtml(file.username || 'Anonym')} • ${sizeStr} • ${timeStr}</span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <a href="${file.file_data}" download="${escapeHtml(file.filename)}" class="btn" style="background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; font-weight: 800; font-size: 0.82rem; border: none; padding: 7px 14px; border-radius: 8px; cursor: pointer; text-decoration: none; display: flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(234, 88, 12, 0.35);">
+                        <span>📥 Download</span>
+                    </a>
+                    ${deleteBtnHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function handleAddFile(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('anonfile-input');
+    const titleInput = document.getElementById('file-title-input');
+    const submitBtn = document.getElementById('anonfiles-submit-btn');
+
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+        alert('Dateien dürfen maximal 50 MB groß sein.');
+        return;
+    }
+
+    const title = titleInput.value.trim() || file.name;
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Hochladen...';
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        const fileDataUrl = event.target.result;
+
+        try {
+            const response = await fetch('/api/files', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.token}`
+                },
+                body: JSON.stringify({
+                    filename: title,
+                    fileData: fileDataUrl,
+                    fileSize: file.size
+                })
+            });
+
+            if (response.ok) {
+                fileInput.value = '';
+                titleInput.value = '';
+                toggleAddFileForm(false);
+            } else {
+                const data = await response.json();
+                alert(data.error || 'Fehler beim Hochladen.');
+            }
+        } catch (err) {
+            console.error('File upload error:', err);
+            alert('Netzwerkfehler beim Hochladen.');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '📤 Hochladen';
+            }
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+async function deleteAnonFile(fileId) {
+    if (!confirm('Möchtest du diese Datei wirklich löschen?')) return;
+    try {
+        const response = await fetch(`/api/files/${fileId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            alert(data.error || 'Fehler beim Löschen der Datei.');
+        }
+    } catch (e) {
+        alert('Fehler beim Löschen.');
+    }
+}
+
 
 // Expose Call & Modal Functions Globally to Window Object for Inline HTML onclick Handlers
 
@@ -3301,6 +3514,13 @@ window.switchLinkCategory = switchLinkCategory;
 window.promptCreateNewFolder = promptCreateNewFolder;
 window.deleteLinkFolder = deleteLinkFolder;
 window.toggleAddLinkForm = toggleAddLinkForm;
+
+window.openAnonFilesModal = openAnonFilesModal;
+window.closeAnonFilesModal = closeAnonFilesModal;
+window.toggleAddFileForm = toggleAddFileForm;
+window.handleAddFile = handleAddFile;
+window.deleteAnonFile = deleteAnonFile;
+
 
 window.handleAddLink = handleAddLink;
 window.deleteSharedLink = deleteSharedLink;

@@ -292,6 +292,20 @@ db.serialize(() => {
         db.run(`INSERT OR IGNORE INTO shared_folders (name) VALUES ('DDOS'), ('DOXEN')`);
     });
 
+    // 6. Shared Files Table (AnonFiles Cloud Vault)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS shared_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            file_size INTEGER DEFAULT 0,
+            file_data TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+
 
 
 
@@ -379,31 +393,34 @@ function saveUsersBackup() {
                 if (err || !messages) return;
                 db.all(`SELECT id, user_id, title, url, category, created_at FROM shared_links`, [], (err, links) => {
                     db.all(`SELECT id, name, created_by, created_at FROM shared_folders`, [], (err, folders) => {
+                        db.all(`SELECT id, user_id, username, filename, file_size, file_data, created_at FROM shared_files`, [], (err, files) => {
 
-                        const backupObj = {
-                            users: users || [],
-                            contacts: contacts || [],
-                            messages: messages || [],
-                            shared_links: links || [],
-                            shared_folders: folders || []
-                        };
+                            const backupObj = {
+                                users: users || [],
+                                contacts: contacts || [],
+                                messages: messages || [],
+                                shared_links: links || [],
+                                shared_folders: folders || [],
+                                shared_files: files || []
+                            };
 
-                        try {
-                            const jsonStr = JSON.stringify(backupObj, null, 2);
-                            const encryptedPayload = encryptData(jsonStr);
-                            fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
-                            if (BACKUP_ENC_FILE !== ALT_BACKUP_ENC_FILE) {
-                                try { fs.writeFileSync(ALT_BACKUP_ENC_FILE, encryptedPayload, 'utf8'); } catch (e) {}
+                            try {
+                                const jsonStr = JSON.stringify(backupObj, null, 2);
+                                const encryptedPayload = encryptData(jsonStr);
+                                fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
+                                if (BACKUP_ENC_FILE !== ALT_BACKUP_ENC_FILE) {
+                                    try { fs.writeFileSync(ALT_BACKUP_ENC_FILE, encryptedPayload, 'utf8'); } catch (e) {}
+                                }
+
+                                // Clean up old backup files
+                                const oldUserEnc = path.join(__dirname, 'users_backup.enc');
+                                if (fs.existsSync(oldUserEnc) && oldUserEnc !== BACKUP_ENC_FILE) fs.unlinkSync(oldUserEnc);
+                                const oldUserJson = path.join(__dirname, 'users_backup.json');
+                                if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
+                            } catch (e) {
+                                console.error('Error writing encrypted db backup:', e.message);
                             }
-
-                            // Clean up old backup files
-                            const oldUserEnc = path.join(__dirname, 'users_backup.enc');
-                            if (fs.existsSync(oldUserEnc) && oldUserEnc !== BACKUP_ENC_FILE) fs.unlinkSync(oldUserEnc);
-                            const oldUserJson = path.join(__dirname, 'users_backup.json');
-                            if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
-                        } catch (e) {
-                            console.error('Error writing encrypted db backup:', e.message);
-                        }
+                        });
                     });
                 });
             });
@@ -470,14 +487,24 @@ function restoreUsersFromBackup() {
                 });
             }
 
-            // 6. Fix sqlite_sequence for AUTOINCREMENT counters (prevents ID collision bugs)
+            // 6. Restore Shared Files (AnonFiles Vault)
+            if (Array.isArray(backupObj.shared_files) && backupObj.shared_files.length > 0) {
+                const insertFile = `INSERT OR IGNORE INTO shared_files (id, user_id, username, filename, file_size, file_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                backupObj.shared_files.forEach(f => {
+                    db.run(insertFile, [f.id, f.user_id, f.username, f.filename, f.file_size || 0, f.file_data, f.created_at || new Date().toISOString()]);
+                });
+            }
+
+            // Fix sqlite_sequence for AUTOINCREMENT counters
             db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM messages) WHERE name = 'messages'`, () => {});
             db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_links) WHERE name = 'shared_links'`, () => {});
             db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_folders) WHERE name = 'shared_folders'`, () => {});
+            db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_files) WHERE name = 'shared_files'`, () => {});
             db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM users) WHERE name = 'users'`, () => {});
             db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM contacts) WHERE name = 'contacts'`, () => {});
 
-            console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, ${backupObj.messages?.length || 0} messages, ${backupObj.shared_links?.length || 0} links, and ${backupObj.shared_folders?.length || 0} folders from AES-256-GCM backup!`);
+            console.log(`[+] Restored & merged ${backupObj.users?.length || 0} users, ${backupObj.contacts?.length || 0} contacts, ${backupObj.messages?.length || 0} messages, ${backupObj.shared_links?.length || 0} links, ${backupObj.shared_folders?.length || 0} folders, and ${backupObj.shared_files?.length || 0} files from AES-256-GCM backup!`);
+
         });
     } catch (e) {
         console.error('Error restoring encrypted db backup:', e.message);
@@ -1111,6 +1138,77 @@ app.delete('/api/links/:id', authenticateToken, (req, res) => {
         });
     });
 });
+
+
+// ----------------------------------------------------
+// AnonFiles Storage Vault REST Endpoints
+// ----------------------------------------------------
+app.get('/api/files', authenticateToken, (req, res) => {
+    db.all("SELECT id, user_id, username, filename, file_size, file_data, created_at FROM shared_files ORDER BY id DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: 'Fehler beim Laden der Dateien.' });
+        res.json(rows || []);
+    });
+});
+
+app.post('/api/files', authenticateToken, (req, res) => {
+    const { filename, fileData, fileSize } = req.body;
+    if (!filename || !fileData) {
+        return res.status(400).json({ error: 'Dateiname und Datei-Daten erforderlich.' });
+    }
+
+    const trimmedFilename = filename.trim();
+    const sizeNum = Number(fileSize) || 0;
+
+    db.run("INSERT INTO shared_files (user_id, username, filename, file_size, file_data) VALUES (?, ?, ?, ?, ?)",
+        [req.user.id, req.user.username, trimmedFilename, sizeNum, fileData],
+        function(err) {
+            if (err) {
+                console.error('Error inserting file:', err);
+                return res.status(500).json({ error: 'Fehler beim Hochladen der Datei.' });
+            }
+
+            const newFile = {
+                id: this.lastID,
+                user_id: req.user.id,
+                username: req.user.username,
+                filename: trimmedFilename,
+                file_size: sizeNum,
+                file_data: fileData,
+                created_at: new Date().toISOString()
+            };
+
+            saveUsersBackup();
+            io.emit('file_uploaded', newFile);
+            res.json(newFile);
+        }
+    );
+});
+
+app.delete('/api/files/:id', authenticateToken, (req, res) => {
+    const fileId = req.params.id;
+    const userId = req.user.id;
+
+    db.get("SELECT user_id FROM shared_files WHERE id = ?", [fileId], (err, file) => {
+        if (err || !file) {
+            return res.status(404).json({ error: 'Datei nicht gefunden.' });
+        }
+
+        if (Number(file.user_id) !== Number(userId)) {
+            return res.status(403).json({ error: 'Nur der Ersteller darf diese Datei löschen.' });
+        }
+
+        db.run("DELETE FROM shared_files WHERE id = ?", [fileId], function(err) {
+            if (err) {
+                return res.status(500).json({ error: 'Fehler beim Löschen der Datei.' });
+            }
+
+            saveUsersBackup();
+            io.emit('file_deleted', { id: fileId });
+            res.json({ message: 'Datei gelöscht.' });
+        });
+    });
+});
+
 
 
 
