@@ -201,14 +201,14 @@ input, textarea {
 .brand-logo {
     width: 64px;
     height: 64px;
-    background: linear-gradient(135deg, var(--accent), #10b981);
+    background: linear-gradient(135deg, #ef4444, #f97316);
     color: #ffffff;
     border-radius: 20px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     margin-bottom: 12px;
-    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
 }
 
 .auth-header h2 {

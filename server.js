@@ -226,14 +226,18 @@ db.serialize(() => {
             email TEXT UNIQUE NOT NULL,
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            avatar_color TEXT DEFAULT '#3b82f6',
-            avatar_url TEXT,
+            avatar_color TEXT DEFAULT '#ea580c',
+            avatar_url TEXT DEFAULT 'logo.jpg',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 
     // Ensure avatar_url column exists for existing DBs
-    db.run("ALTER TABLE users ADD COLUMN avatar_url TEXT", () => {});
+    db.run("ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT 'logo.jpg'", () => {});
+
+    // Force update existing users to use the new orange logo.jpg
+    db.run("UPDATE users SET avatar_url = 'logo.jpg', avatar_color = '#ea580c'");
+
 
 
     // 2. Contacts Table

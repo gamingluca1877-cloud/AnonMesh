@@ -750,7 +750,7 @@ function showAppView() {
         myAvatar.innerHTML = `<img src="${state.currentUser.avatar_url}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
     } else {
         myAvatar.textContent = state.currentUser.username.charAt(0).toUpperCase();
-        myAvatar.style.backgroundColor = state.currentUser.avatar_color || '#06b6d4';
+        myAvatar.style.backgroundColor = state.currentUser.avatar_color || '#ea580c';
     }
     
     document.getElementById('my-email').textContent = state.currentUser.email;

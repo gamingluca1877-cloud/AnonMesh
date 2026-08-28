@@ -38,16 +38,16 @@
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --accent-light: rgba(59, 130, 246, 0.15);
-    --msg-incoming: #182533;
+    --accent: #ea580c;
+    --accent-hover: #ef4444;
+    --accent-light: rgba(239, 68, 68, 0.15);
+    --msg-incoming: #181112;
     --msg-incoming-text: #f8fafc;
-    --msg-outgoing: #2b5278;
+    --msg-outgoing: #2e1719;
     --msg-outgoing-text: #ffffff;
     --online-color: #22c55e;
     --offline-color: #64748b;
-    --unread-bg: #3b82f6;
+    --unread-bg: #ef4444;
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
@@ -67,16 +67,16 @@
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --text-muted: #94a3b8;
-    --accent: #00a884;
-    --accent-hover: #008f70;
-    --accent-light: rgba(0, 168, 132, 0.12);
+    --accent: #ea580c;
+    --accent-hover: #ef4444;
+    --accent-light: rgba(239, 68, 68, 0.12);
     --msg-incoming: #ffffff;
     --msg-incoming-text: #111b21;
-    --msg-outgoing: #d9fdd3;
+    --msg-outgoing: #ffe4e6;
     --msg-outgoing-text: #111b21;
     --online-color: #16a34a;
     --offline-color: #94a3b8;
-    --unread-bg: #25d366;
+    --unread-bg: #ef4444;
 }
 
 * { 
@@ -90,11 +90,11 @@
     user-select: text !important;
 }
 ::selection {
-    background: #0284c7 !important;
+    background: #ea580c !important;
     color: #ffffff !important;
 }
 ::-moz-selection {
-    background: #0284c7 !important;
+    background: #ea580c !important;
     color: #ffffff !important;
 }
 body { background-color: var(--bg-main); color: var(--text-primary); height: 100vh; width: 100vw; overflow: hidden; display: flex; justify-content: center; align-items: center; }
@@ -104,11 +104,12 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
 .icon-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 8px; border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center; transition: var(--transition); }
 .icon-btn:hover { background: var(--accent-light); color: var(--accent); }
 
-.auth-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px; background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 40%), radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.1), transparent 40%); }
+.auth-container { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px; background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.15), transparent 40%), radial-gradient(circle at bottom left, rgba(234, 88, 12, 0.1), transparent 40%); }
 .auth-card { background: var(--bg-card); border: 1px solid var(--border-color); width: 100%; max-width: 420px; padding: 36px 30px; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 .auth-header { text-align: center; margin-bottom: 24px; }
-.brand-logo { width: 64px; height: 64px; background: linear-gradient(135deg, var(--accent), #10b981); color: #ffffff; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3); }
+.brand-logo { width: 64px; height: 64px; background: linear-gradient(135deg, #ef4444, #f97316); color: #ffffff; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4); }
+
 .auth-header h2 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
 .auth-header p { color: var(--text-secondary); font-size: 0.88rem; }
 .auth-tabs { display: flex; background: var(--bg-main); padding: 4px; border-radius: var(--radius-md); margin-bottom: 20px; }
