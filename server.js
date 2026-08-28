@@ -996,7 +996,7 @@ app.delete('/api/link-folders/:id', authenticateToken, (req, res) => {
             return res.status(404).json({ error: 'Ordner nicht gefunden.' });
         }
 
-        if (Number(folder.created_by) !== Number(userId)) {
+        if (folder.created_by && Number(folder.created_by) !== Number(userId)) {
             return res.status(403).json({ error: 'Nur der Ersteller darf diesen Ordner löschen.' });
         }
 
@@ -1014,6 +1014,35 @@ app.delete('/api/link-folders/:id', authenticateToken, (req, res) => {
         });
     });
 });
+
+// DELETE /api/link-folders/by-name/:name - Delete a folder by name (Strictly Creator Only!)
+app.delete('/api/link-folders/by-name/:name', authenticateToken, (req, res) => {
+    const rawName = decodeURIComponent(req.params.name || '').trim();
+    if (!rawName) return res.status(400).json({ error: 'Ordnername erforderlich.' });
+    const folderName = rawName.toUpperCase();
+    const userId = req.user.id;
+
+    db.get("SELECT * FROM shared_folders WHERE UPPER(name) = ?", [folderName], (err, folder) => {
+        if (err || !folder) {
+            db.run("DELETE FROM shared_links WHERE UPPER(category) = ? AND user_id = ?", [folderName, userId]);
+            saveUsersBackup();
+            io.emit('folder_deleted', { name: folderName });
+            return res.json({ message: 'Ordner gelöscht.' });
+        }
+
+        if (folder.created_by && Number(folder.created_by) !== Number(userId)) {
+            return res.status(403).json({ error: 'Nur der Ersteller darf diesen Ordner löschen.' });
+        }
+
+        db.run("DELETE FROM shared_folders WHERE UPPER(name) = ?", [folderName], function(err) {
+            db.run("DELETE FROM shared_links WHERE UPPER(category) = ?", [folderName]);
+            saveUsersBackup();
+            io.emit('folder_deleted', { id: folder.id, name: folderName });
+            res.json({ message: 'Ordner gelöscht.' });
+        });
+    });
+});
+
 
 // POST /api/links - Add a new shared link
 

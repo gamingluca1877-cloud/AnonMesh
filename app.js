@@ -2909,7 +2909,7 @@ function renderLinkFolderTabs() {
     bar.innerHTML = loadedSharedFolderObjects.map(folderObj => {
         const folder = folderObj.name;
         const isActive = folder.toUpperCase() === activeLinkCategory.toUpperCase();
-        const isFolderOwner = folderObj.created_by && Number(folderObj.created_by) === Number(currentUserId);
+        const isFolderOwner = !folderObj.created_by || Number(folderObj.created_by) === Number(currentUserId);
 
         const activeBg = 'linear-gradient(135deg, #ef4444, #f97316)';
         
@@ -2948,16 +2948,24 @@ async function deleteLinkFolder(id, name) {
                 headers: { 'Authorization': `Bearer ${state.token}` }
             });
         }
+
+        await fetch(`/api/link-folders/by-name/${encodeURIComponent(name)}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${state.token}` }
+        });
         
         let vault = getLocalVaultFolders();
         vault = vault.filter(f => (typeof f === 'string' ? f : f.name).toUpperCase() !== name.toUpperCase());
         localStorage.setItem('anonmesh_vault_folders', JSON.stringify(vault));
 
+        activeLinkCategory = 'DDOS';
         loadLinkFolders();
     } catch (e) {
         console.warn('deleteLinkFolder error:', e);
+        loadLinkFolders();
     }
 }
+
 
 
 async function promptCreateNewFolder() {
