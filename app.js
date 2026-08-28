@@ -1806,12 +1806,8 @@ async function handleFileSelected(e) {
     const file = e.target.files[0];
     if (!file || !state.activeContact) return;
 
-    if (file.size > 25 * 1024 * 1024) {
-        alert('Dateien dürfen maximal 25 MB groß sein.');
-        return;
-    }
-
     const reader = new FileReader();
+
     reader.onload = async (event) => {
         let fileDataUrl = event.target.result;
         let formattedPayload = '';
@@ -3510,12 +3506,8 @@ async function handleAddFile(e) {
     const file = fileInput.files[0];
     if (!file) return;
 
-    if (file.size > 50 * 1024 * 1024) {
-        alert('Dateien dürfen maximal 50 MB groß sein.');
-        return;
-    }
-
     const originalName = file.name;
+
     const extIndex = originalName.lastIndexOf('.');
     const ext = extIndex !== -1 ? originalName.substring(extIndex) : '';
 
@@ -3556,6 +3548,10 @@ async function handleAddFile(e) {
             });
 
             if (response.ok) {
+                const newFile = await response.json();
+                saveFileToLocalVault(newFile);
+                state.sharedFiles = getLocalVaultFiles();
+                renderAnonFiles();
                 fileInput.value = '';
                 titleInput.value = '';
                 toggleAddFileForm(false);
@@ -3563,6 +3559,7 @@ async function handleAddFile(e) {
                 const data = await response.json();
                 alert(data.error || 'Fehler beim Hochladen.');
             }
+
         } catch (err) {
             console.error('File upload error:', err);
             alert('Netzwerkfehler beim Hochladen.');
