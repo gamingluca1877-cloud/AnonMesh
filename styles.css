@@ -628,7 +628,7 @@ input, textarea {
 .chat-status.online { color: var(--online-color); }
 .chat-status.offline { color: var(--offline-color); }
 
-/* MESSAGES CONTAINER */
+/* MESSAGES CONTAINER WITH WATERMARK LOGO */
 .messages-container {
     flex: 1;
     min-height: 0;
@@ -638,7 +638,25 @@ input, textarea {
     flex-direction: column;
     position: relative;
     z-index: 10;
+    background-color: var(--bg-chat);
 }
+
+.messages-container::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 280px;
+    height: 280px;
+    background: url('logo.jpg') center center / contain no-repeat;
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 50%;
+    filter: drop-shadow(0 0 30px rgba(239, 68, 68, 0.4));
+}
+
 
 
 .no-chat-placeholder {
