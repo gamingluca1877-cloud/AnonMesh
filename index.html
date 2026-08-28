@@ -379,13 +379,22 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
 
 
             <!-- Contacts / Active Chats List -->
-            <div class="contacts-list-container">
+            <div class="contacts-list-container" style="flex: 1; overflow-y: auto;">
                 <div class="list-section-title">CHATS & KONTAKTE</div>
                 <div id="contacts-list" class="contacts-list">
                     <!-- Contacts will be populated dynamically via JavaScript -->
                 </div>
             </div>
+
+            <!-- AnonFiles Storage Button Section (Bottom of Sidebar) -->
+            <div style="padding: 14px 16px; border-top: 1px solid var(--border-color); background: var(--bg-card); margin-top: auto;">
+                <a href="https://anonmesh-storage.onrender.com/" target="_blank" rel="noopener noreferrer" id="anonfiles-btn" class="btn" style="width: 100%; background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; font-weight: 800; font-size: 0.98rem; border: none; padding: 12px 16px; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.4); text-decoration: none; transition: transform 0.15s ease, background 0.2s ease;" onmouseenter="this.style.transform='scale(1.02)'" onmouseleave="this.style.transform='scale(1)'">
+                    <span style="font-size: 1.2rem;">📁</span>
+                    <span>AnonFiles</span>
+                </a>
+            </div>
         </aside>
+
 
         <!-- RIGHT CHAT AREA: Message Window -->
         <main id="chat-area" class="chat-area empty-chat-state">
