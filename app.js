@@ -1262,13 +1262,34 @@ function saveMessageToLocalVault(msg) {
     try {
         const vaultKey = `anonmesh_vault_messages_${state.currentUser.id}`;
         let vault = JSON.parse(localStorage.getItem(vaultKey) || '[]');
+
+        const msgSender = Number(msg.sender_id);
+        const msgReceiver = Number(msg.receiver_id);
         
-        const exists = vault.some(m => (m.id && msg.id && m.id === msg.id) || (m.timestamp === msg.timestamp && m.sender_id === msg.sender_id && m.receiver_id === msg.receiver_id && m.content === msg.content));
-        
-        if (!exists) {
-            vault.push(msg);
-            localStorage.setItem(vaultKey, JSON.stringify(vault));
+        // If msg has a real numeric server ID, remove matching temp_ messages
+        if (msg.id && typeof msg.id === 'number') {
+            vault = vault.filter(m => !(
+                typeof m.id === 'string' &&
+                m.id.startsWith('temp_') &&
+                Number(m.sender_id) === msgSender &&
+                Number(m.receiver_id) === msgReceiver &&
+                m.content === msg.content
+            ));
         }
+
+        // Check if message already exists by ID or by exact content + sender + receiver
+        const existingIdx = vault.findIndex(m => 
+            (m.id && msg.id && m.id === msg.id) ||
+            (Number(m.sender_id) === msgSender && Number(m.receiver_id) === msgReceiver && m.content === msg.content && Math.abs(new Date(m.timestamp) - new Date(msg.timestamp)) < 5000)
+        );
+        
+        if (existingIdx === -1) {
+            vault.push(msg);
+        } else {
+            vault[existingIdx] = { ...vault[existingIdx], ...msg };
+        }
+
+        localStorage.setItem(vaultKey, JSON.stringify(vault));
     } catch (e) {
         console.warn('saveMessageToLocalVault error:', e);
     }
@@ -1282,14 +1303,34 @@ function getLocalVaultMessages(contactId) {
         const contactIdNum = Number(contactId);
         const myIdNum = Number(state.currentUser.id);
         
-        return vault.filter(m => 
+        const filtered = vault.filter(m => 
             (Number(m.sender_id) === myIdNum && Number(m.receiver_id) === contactIdNum) ||
             (Number(m.sender_id) === contactIdNum && Number(m.receiver_id) === myIdNum)
         ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // Deduplicate messages: prefer numeric ID over temp_ string ID
+        const result = [];
+        const seenKeys = new Map();
+
+        for (const msg of filtered) {
+            const key = `${msg.sender_id}_${msg.receiver_id}_${msg.content}`;
+            if (seenKeys.has(key)) {
+                const existingIdx = seenKeys.get(key);
+                if (typeof msg.id === 'number') {
+                    result[existingIdx] = msg;
+                }
+            } else {
+                seenKeys.set(key, result.length);
+                result.push(msg);
+            }
+        }
+
+        return result;
     } catch (e) {
         return [];
     }
 }
+
 
 async function loadMessages(contactId) {
     const messagesList = document.getElementById('messages-list');
