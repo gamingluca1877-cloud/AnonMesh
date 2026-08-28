@@ -1799,14 +1799,30 @@ async function handleFileSelected(e) {
         let formattedPayload = '';
 
         if (file.type.startsWith('image/')) {
-            // Compress photo automatically so it transmits at lightning speed
-            fileDataUrl = await compressImage(fileDataUrl);
+            // Compress photo so base64 payload is ultra-lightweight & transmits instantly!
+            fileDataUrl = await compressImage(fileDataUrl, 1024, 0.78);
             formattedPayload = `📷IMG:${fileDataUrl}`;
         } else {
             formattedPayload = `📎FILE:${file.name}:::${fileDataUrl}`;
         }
 
         const encrypted = await encryptMessageE2EE(formattedPayload, state.activeContact.username);
+
+        // Instant local outgoing rendering (< 1ms)!
+        const localMsg = {
+            id: 'temp_' + Date.now(),
+            sender_id: state.currentUser.id,
+            receiver_id: state.activeContact.id,
+            content: encrypted,
+            timestamp: new Date().toISOString(),
+            is_read: 0
+        };
+
+        await appendMessageBubble(localMsg, true);
+        saveMessageToLocalVault(localMsg);
+        scrollToBottom();
+        updateContactLastMessage(state.activeContact.id, encrypted, localMsg.timestamp);
+
         state.socket.emit('send_message', {
             receiver_id: state.activeContact.id,
             content: encrypted
@@ -1884,6 +1900,22 @@ function stopAndSendVoiceRecording() {
             const payload = `🎙️AUDIO:${base64Audio}`;
             if (state.activeContact) {
                 const encrypted = await encryptMessageE2EE(payload, state.activeContact.username);
+
+                // Instant local outgoing rendering (< 1ms)!
+                const localMsg = {
+                    id: 'temp_' + Date.now(),
+                    sender_id: state.currentUser.id,
+                    receiver_id: state.activeContact.id,
+                    content: encrypted,
+                    timestamp: new Date().toISOString(),
+                    is_read: 0
+                };
+
+                await appendMessageBubble(localMsg, true);
+                saveMessageToLocalVault(localMsg);
+                scrollToBottom();
+                updateContactLastMessage(state.activeContact.id, encrypted, localMsg.timestamp);
+
                 state.socket.emit('send_message', {
                     receiver_id: state.activeContact.id,
                     content: encrypted
@@ -1896,6 +1928,7 @@ function stopAndSendVoiceRecording() {
 
     voiceState.mediaRecorder.stop();
 }
+
 
 function resetVoiceRecorderUI() {
     clearInterval(voiceState.timerInterval);
