@@ -794,15 +794,21 @@ function initSocketConnection() {
     });
 
     state.socket.on('file_uploaded', (newFile) => {
-        state.sharedFiles = state.sharedFiles || [];
-        state.sharedFiles.unshift(newFile);
+        saveFileToLocalVault(newFile);
+        state.sharedFiles = getLocalVaultFiles();
         renderAnonFiles();
     });
 
     state.socket.on('file_deleted', ({ id }) => {
-        state.sharedFiles = (state.sharedFiles || []).filter(f => Number(f.id) !== Number(id));
+        try {
+            let vault = getLocalVaultFiles();
+            vault = vault.filter(f => Number(f.id) !== Number(id));
+            localStorage.setItem('anonmesh_vault_shared_files', JSON.stringify(vault));
+            state.sharedFiles = vault;
+        } catch (e) {}
         renderAnonFiles();
     });
+
 
 
     // Incoming Private Message
@@ -3333,33 +3339,74 @@ function formatBytes(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+function saveFileToLocalVault(file) {
+    if (!file || !file.filename || !file.file_data) return;
+    try {
+        let vault = JSON.parse(localStorage.getItem('anonmesh_vault_shared_files') || '[]');
+        const exists = vault.some(f => (f.id && file.id && f.id === file.id) || (f.filename === file.filename && f.user_id === file.user_id));
+        if (!exists) {
+            vault.unshift(file);
+            localStorage.setItem('anonmesh_vault_shared_files', JSON.stringify(vault));
+        }
+    } catch (e) {}
+}
+
+function getLocalVaultFiles() {
+    try {
+        return JSON.parse(localStorage.getItem('anonmesh_vault_shared_files') || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+async function syncLocalFilesToServer() {
+    if (!state.token) return;
+    try {
+        const localFiles = getLocalVaultFiles();
+        if (localFiles.length > 0) {
+            await fetch('/api/files/sync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.token}`
+                },
+                body: JSON.stringify({ files: localFiles })
+            });
+        }
+    } catch (e) {
+        console.warn('syncLocalFilesToServer error:', e);
+    }
+}
+
 async function loadAnonFiles() {
-    const list = document.getElementById('anonfiles-list');
-    if (list && state.sharedFiles.length === 0) {
-        list.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.85rem;">Dateien werden geladen...</div>';
+    await syncLocalFilesToServer();
+
+    // 1. Instant load from LocalStorage Vault (0ms delay)
+    const vaultFiles = getLocalVaultFiles();
+    if (vaultFiles.length > 0) {
+        state.sharedFiles = vaultFiles;
+        renderAnonFiles();
     }
 
+    // 2. Fetch and merge from Server DB
     try {
         const response = await fetch('/api/files', {
             headers: { 'Authorization': `Bearer ${state.token}` }
         });
         if (response.ok) {
             const files = await response.json();
-            state.sharedFiles = files || [];
-            try {
-                localStorage.setItem('anonmesh_vault_shared_files', JSON.stringify(state.sharedFiles));
-            } catch(e) {}
+            if (files && files.length > 0) {
+                files.forEach(f => saveFileToLocalVault(f));
+                state.sharedFiles = getLocalVaultFiles();
+            }
         }
     } catch (e) {
         console.warn('loadAnonFiles network error:', e);
-        try {
-            const cached = localStorage.getItem('anonmesh_vault_shared_files');
-            if (cached) state.sharedFiles = JSON.parse(cached);
-        } catch(e2) {}
     }
 
     renderAnonFiles();
 }
+
 
 function downloadAnonFile(fileId) {
     const file = state.sharedFiles.find(f => Number(f.id) === Number(fileId));

@@ -1150,6 +1150,38 @@ app.get('/api/files', authenticateToken, (req, res) => {
     });
 });
 
+app.post('/api/files/sync', authenticateToken, (req, res) => {
+    const { files } = req.body;
+    if (!Array.isArray(files) || files.length === 0) {
+        return res.json({ message: 'Nichts zu synchronisieren.' });
+    }
+
+    db.serialize(() => {
+        const stmtFile = db.prepare(`INSERT OR IGNORE INTO shared_files (id, user_id, username, filename, file_size, file_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+
+        files.forEach(f => {
+            if (f.filename && f.file_data) {
+                stmtFile.run([
+                    f.id || null,
+                    f.user_id || req.user.id,
+                    f.username || req.user.username,
+                    f.filename,
+                    f.file_size || 0,
+                    f.file_data,
+                    f.created_at || new Date().toISOString()
+                ]);
+            }
+        });
+        stmtFile.finalize();
+
+        db.run(`UPDATE sqlite_sequence SET seq = (SELECT MAX(id) FROM shared_files) WHERE name = 'shared_files'`, () => {});
+
+        saveUsersBackup();
+        res.json({ message: 'Dateien erfolgreich synchronisiert!' });
+    });
+});
+
+
 app.post('/api/files', authenticateToken, (req, res) => {
     const { filename, fileData, fileSize } = req.body;
     if (!filename || !fileData) {
