@@ -1146,9 +1146,37 @@ app.delete('/api/links/:id', authenticateToken, (req, res) => {
 // AnonFiles Storage Vault REST Endpoints
 // ----------------------------------------------------
 app.get('/api/files', authenticateToken, (req, res) => {
-    db.all("SELECT id, user_id, username, filename, file_size, file_data, created_at FROM shared_files ORDER BY id DESC", [], (err, rows) => {
+    // Return metadata only (lightweight, lightning fast, no browser memory overload)
+    db.all("SELECT id, user_id, username, filename, file_size, created_at FROM shared_files ORDER BY id DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: 'Fehler beim Laden der Dateien.' });
         res.json(rows || []);
+    });
+});
+
+app.get('/api/files/:id/download', (req, res) => {
+    const fileId = req.params.id;
+    db.get("SELECT filename, file_size, file_data FROM shared_files WHERE id = ?", [fileId], (err, row) => {
+        if (err || !row || !row.file_data) {
+            return res.status(404).send('Datei nicht gefunden.');
+        }
+
+        try {
+            if (row.file_data.startsWith('data:')) {
+                const parts = row.file_data.split(',');
+                const mimeMatch = parts[0].match(/:(.*?);/);
+                const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+                const buffer = Buffer.from(parts[1], 'base64');
+                res.setHeader('Content-Type', mimeType);
+                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(row.filename)}"`);
+                res.setHeader('Content-Length', buffer.length);
+                return res.send(buffer);
+            }
+            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(row.filename)}"`);
+            res.send(row.file_data);
+        } catch (e) {
+            console.error('Download error:', e);
+            res.status(500).send('Fehler beim Download.');
+        }
     });
 });
 
@@ -1183,7 +1211,6 @@ app.post('/api/files/sync', authenticateToken, (req, res) => {
     });
 });
 
-
 app.post('/api/files', authenticateToken, (req, res) => {
     const { filename, fileData, fileSize } = req.body;
     if (!filename || !fileData) {
@@ -1201,19 +1228,18 @@ app.post('/api/files', authenticateToken, (req, res) => {
                 return res.status(500).json({ error: 'Fehler beim Hochladen der Datei.' });
             }
 
-            const newFile = {
+            const newFileMeta = {
                 id: this.lastID,
                 user_id: req.user.id,
                 username: req.user.username,
                 filename: trimmedFilename,
                 file_size: sizeNum,
-                file_data: fileData,
                 created_at: new Date().toISOString()
             };
 
             saveUsersBackup();
-            io.emit('file_uploaded', newFile);
-            res.json(newFile);
+            io.emit('file_uploaded', newFileMeta);
+            res.json(newFileMeta);
         }
     );
 });
@@ -1242,6 +1268,7 @@ app.delete('/api/files/:id', authenticateToken, (req, res) => {
         });
     });
 });
+
 
 
 

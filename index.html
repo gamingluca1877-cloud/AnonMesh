@@ -628,49 +628,58 @@ body { background-color: var(--bg-main); color: var(--text-primary); height: 100
     <!-- 3c. ANONFILES CLOUD FILE STORAGE VAULT MODAL        -->
     <!-- ==================================================== -->
     <div id="anonfiles-modal" class="modal-overlay hidden">
-        <div class="modal-card" style="max-width: 620px; width: 92vw; background: #1a1214; border-radius: 16px; border: 1px solid rgba(234, 88, 12, 0.4); color: #f2f3f5; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85); text-align: left; padding: 20px;">
+        <div class="modal-card" style="max-width: 640px; width: 94vw; background: #181113; border-radius: 18px; border: 1px solid rgba(234, 88, 12, 0.45); color: #f2f3f5; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9); text-align: left; padding: 22px;">
             
             <!-- Modal Header -->
             <div style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
-                    📁 AnonFiles Cloud-Speicher
-                </h3>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <button type="button" onclick="toggleAddFileForm()" style="background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; font-weight: 800; font-size: 0.82rem; border: none; padding: 7px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);">
-                        <span>📤 Datei hochladen</span>
-                    </button>
-                    <button type="button" class="icon-btn" onclick="closeAnonFilesModal()" style="background: transparent; border: none; color: #b5bac1; font-size: 1.4rem; cursor: pointer;">✕</button>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.4rem;">📁</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">AnonFiles Cloud-Speicher</h3>
+                        <span style="font-size: 0.76rem; color: #f97316;">Für jeden Account dauerhaft verfügbar & downloadbar</span>
+                    </div>
                 </div>
+                <button type="button" class="icon-btn" onclick="closeAnonFilesModal()" style="background: transparent; border: none; color: #b5bac1; font-size: 1.4rem; cursor: pointer; padding: 4px 8px;">✕</button>
             </div>
 
-            <!-- Collapsible Upload File Form -->
-            <form id="add-file-form" class="hidden" onsubmit="handleAddFile(event)" style="background: #231618; padding: 14px; border-radius: 12px; border: 1px solid rgba(234, 88, 12, 0.3); margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;">
-                <div style="font-weight: 700; font-size: 0.85rem; color: #f97316;">
-                    📤 Neue Datei hochladen (EXE, ZIP, RAR, PDF, Bilder etc.)
+            <!-- Always-Visible Drag & Drop / File Upload Card -->
+            <form id="add-file-form" onsubmit="handleAddFile(event)" style="background: #231618; border: 2px dashed rgba(234, 88, 12, 0.4); border-radius: 14px; padding: 16px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 12px; transition: border-color 0.2s;">
+                
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <span style="font-weight: 700; font-size: 0.88rem; color: #f97316; display: flex; align-items: center; gap: 6px;">
+                        <span>📤 Datei zum Upload auswählen</span>
+                    </span>
+                    <span style="font-size: 0.74rem; color: #949ba4;">Alle Formate (EXE, ZIP, RAR, PDF etc.)</span>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <input type="file" id="anonfile-input" required onchange="if(this.files[0] && !document.getElementById('file-title-input').value) document.getElementById('file-title-input').value = this.files[0].name;" style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; cursor: pointer;">
-                    <input type="text" id="file-title-input" placeholder="Anzeigename (Optional, standardmäßig Dateiname)..." style="background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; outline: none;">
+
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <input type="file" id="anonfile-input" required onchange="handleAnonFileSelected(this)" style="flex: 1; min-width: 220px; background: #111214; border: 1px solid rgba(255,255,255,0.12); color: #f2f3f5; padding: 9px 12px; border-radius: 8px; font-size: 0.85rem; cursor: pointer;">
+                    <button type="submit" id="anonfiles-submit-btn" class="btn" style="background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; padding: 9px 20px; border-radius: 8px; font-weight: 800; font-size: 0.88rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.4); flex-shrink: 0;">
+                        <span>📤 Jetzt hochladen</span>
+                    </button>
                 </div>
-                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
-                    <button type="button" class="btn" style="background: #2b2d31; color: #dbdee1; padding: 8px 16px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer;" onclick="toggleAddFileForm()">Abbrechen</button>
-                    <button type="submit" id="anonfiles-submit-btn" class="btn" style="background: linear-gradient(135deg, #ea580c, #ef4444); color: #ffffff; padding: 8px 18px; border-radius: 6px; font-weight: 700; border: none; cursor: pointer;">📤 Hochladen</button>
-                </div>
+
+                <div id="anonfile-status-message" style="display: none; font-size: 0.82rem; padding: 8px 12px; border-radius: 6px;"></div>
             </form>
 
+            <!-- Section Title -->
+            <div style="font-size: 0.82rem; font-weight: 700; color: #949ba4; margin-bottom: 10px; letter-spacing: 0.5px; text-transform: uppercase;">
+                Verfügbare Dateien
+            </div>
 
             <!-- Files List Container -->
-            <div id="anonfiles-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 380px; overflow-y: auto; padding-right: 4px;">
+            <div id="anonfiles-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
                 <!-- Files rendered dynamically via JavaScript -->
             </div>
 
             <!-- Footer Action Bar -->
-            <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
-                <span style="font-size: 0.78rem; color: #949ba4;">🔒 Für alle Nutzer sichtbar & downloadbar</span>
-                <button type="button" class="btn" style="padding: 8px 20px; border-radius: var(--radius-full); background: #231618; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;" onclick="closeAnonFilesModal()">Schließen</button>
+            <div style="margin-top: 18px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 0.78rem; color: #949ba4;">🔒 100% Ende-zu-Ende gespeichert & geschützt</span>
+                <button type="button" class="btn" style="padding: 8px 22px; border-radius: var(--radius-full); background: #231618; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;" onclick="closeAnonFilesModal()">Schließen</button>
             </div>
         </div>
     </div>
+
 
 
 
