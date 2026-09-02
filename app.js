@@ -811,6 +811,32 @@ function initSocketConnection() {
         renderAnonFiles();
     });
 
+    // Real-time Shared Links & Folders synchronization
+    state.socket.on('link_added', (newLink) => {
+        saveLinkToLocalVault(newLink);
+        loadSharedLinks();
+    });
+
+    state.socket.on('link_deleted', ({ id }) => {
+        let vault = getLocalVaultLinks();
+        vault = vault.filter(l => Number(l.id) !== Number(id));
+        localStorage.setItem('anonmesh_vault_links', JSON.stringify(vault));
+        loadSharedLinks();
+    });
+
+    state.socket.on('folder_added', (newFolder) => {
+        saveFolderToLocalVault(newFolder);
+        loadLinkFolders();
+    });
+
+    state.socket.on('folder_deleted', ({ id, name }) => {
+        let vault = getLocalVaultFolders();
+        vault = vault.filter(f => (typeof f === 'string' ? f : f.name).toUpperCase() !== (name || '').toUpperCase());
+        localStorage.setItem('anonmesh_vault_folders', JSON.stringify(vault));
+        loadLinkFolders();
+    });
+
+
 
 
 
@@ -3151,6 +3177,13 @@ async function loadSharedLinks() {
     const listContainer = document.getElementById('shared-links-list');
     if (!listContainer) return;
 
+    // 1. Instant load from local vault
+    const localVaultLinks = getLocalVaultLinks();
+    if (localVaultLinks.length > 0) {
+        renderSharedLinks(localVaultLinks);
+    }
+
+    // 2. Fetch and merge from server
     let serverLinks = [];
     try {
         const response = await fetch('/api/links', {
@@ -3158,22 +3191,21 @@ async function loadSharedLinks() {
         });
         if (response.ok) {
             serverLinks = await response.json();
-            (serverLinks || []).forEach(l => saveLinkToLocalVault(l));
+            if (Array.isArray(serverLinks)) {
+                serverLinks.forEach(l => saveLinkToLocalVault(l));
+            }
         }
     } catch (err) {
         console.warn('loadSharedLinks error:', err);
     }
 
-    const localVaultLinks = getLocalVaultLinks();
     const allLinksMap = new Map();
-
-    localVaultLinks.forEach(l => {
-        const key = `${l.url}_${l.title}_${(l.category || 'DDOS').toUpperCase()}`;
+    getLocalVaultLinks().forEach(l => {
+        const key = `${(l.url || '').trim()}_${(l.title || '').trim()}_${(l.category || 'DDOS').toUpperCase()}`;
         allLinksMap.set(key, l);
     });
-
     serverLinks.forEach(l => {
-        const key = `${l.url}_${l.title}_${(l.category || 'DDOS').toUpperCase()}`;
+        const key = `${(l.url || '').trim()}_${(l.title || '').trim()}_${(l.category || 'DDOS').toUpperCase()}`;
         allLinksMap.set(key, l);
     });
 
@@ -3184,12 +3216,13 @@ function renderSharedLinks(links) {
     const listContainer = document.getElementById('shared-links-list');
     if (!listContainer) return;
 
-    const filteredLinks = (links || []).filter(l => (l.category || 'DDOS').toUpperCase() === activeLinkCategory.toUpperCase());
+    const currentCat = (activeLinkCategory || 'DDOS').toUpperCase();
+    const filteredLinks = (links || []).filter(l => (l.category || 'DDOS').toUpperCase() === currentCat);
 
     if (!filteredLinks || filteredLinks.length === 0) {
         listContainer.innerHTML = `
             <div style="text-align: center; color: var(--text-muted); font-size: 0.9rem; padding: 30px 10px;">
-                <span>📁 Im Ordner "${activeLinkCategory}" sind noch keine Links gespeichert.</span>
+                <span>📁 Im Ordner "${escapeHtml(currentCat)}" sind noch keine Links gespeichert.</span>
                 <br><span style="font-size: 0.8rem; margin-top: 6px; color: #ef4444; display: inline-block;">Klicke oben auf "➕ Link hinzufügen", um eine Webseite einzufügen!</span>
             </div>
         `;
@@ -3220,7 +3253,7 @@ function renderSharedLinks(links) {
                     </a>
 
                     ${isOwner ? `
-                        <button onclick="deleteSharedLink(${link.id || 0}, '${escapeHtml(title)}')" title="Nur du als Ersteller kannst diesen Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                        <button type="button" onclick="deleteSharedLink(${link.id || 0}, '${escapeHtml(title)}')" title="Nur du als Ersteller kannst diesen Link löschen" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
                             🗑️
                         </button>
                     ` : ''}
@@ -3231,20 +3264,27 @@ function renderSharedLinks(links) {
 }
 
 async function handleAddLink(e) {
-    if (e) e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const titleInput = document.getElementById('link-title-input');
     const urlInput = document.getElementById('link-url-input');
     if (!titleInput || !urlInput) return;
 
     const title = titleInput.value.trim();
-    const url = urlInput.value.trim();
-    const category = activeLinkCategory;
+    let url = urlInput.value.trim();
+    const category = (activeLinkCategory || 'DDOS').toUpperCase();
 
-    if (!title || !url) return;
+    if (!title || !url) {
+        alert('Bitte Titel und Webadresse eingeben.');
+        return;
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
 
     const newLinkObj = {
         user_id: state.currentUser?.id,
-        username: state.currentUser?.username,
+        username: state.currentUser?.username || 'Anonym',
         title,
         url,
         category,
@@ -3252,6 +3292,7 @@ async function handleAddLink(e) {
     };
 
     saveLinkToLocalVault(newLinkObj);
+    loadSharedLinks();
 
     try {
         const response = await fetch('/api/links', {
@@ -3263,19 +3304,36 @@ async function handleAddLink(e) {
             body: JSON.stringify({ title, url, category })
         });
         if (response.ok) {
+            const savedLink = await response.json();
+            saveLinkToLocalVault(savedLink);
             titleInput.value = '';
             urlInput.value = '';
             toggleAddLinkForm(false);
             loadSharedLinks();
         } else {
+            titleInput.value = '';
+            urlInput.value = '';
+            toggleAddLinkForm(false);
             loadSharedLinks();
         }
     } catch (err) {
+        console.error('handleAddLink network error:', err);
+        titleInput.value = '';
+        urlInput.value = '';
+        toggleAddLinkForm(false);
         loadSharedLinks();
     }
 }
 
 async function deleteSharedLink(id, title) {
+    if (!confirm(`Möchtest du den Link "${title}" wirklich löschen?`)) return;
+
+    if (title) {
+        let vault = getLocalVaultLinks();
+        vault = vault.filter(l => l.title !== title);
+        localStorage.setItem('anonmesh_vault_links', JSON.stringify(vault));
+    }
+
     try {
         if (id && id > 0) {
             await fetch(`/api/links/${id}`, {
@@ -3283,18 +3341,13 @@ async function deleteSharedLink(id, title) {
                 headers: { 'Authorization': `Bearer ${state.token}` }
             });
         }
-
-        if (title) {
-            let vault = getLocalVaultLinks();
-            vault = vault.filter(l => l.title !== title);
-            localStorage.setItem('anonmesh_vault_links', JSON.stringify(vault));
-        }
-
-        loadSharedLinks();
     } catch (err) {
         console.warn('deleteSharedLink error:', err);
     }
+
+    loadSharedLinks();
 }
+
 
 // ----------------------------------------------------
 // ANONFILES CLOUD STORAGE LOGIC (EXE, ZIP, ANY FILE TYPE)

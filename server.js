@@ -386,49 +386,48 @@ function decryptData(encryptedStr) {
 }
 
 function saveUsersBackup() {
+    const pUsers = new Promise(resolve => db.all(`SELECT id, email, username, password_hash, avatar_color, avatar_url, created_at FROM users`, [], (err, rows) => resolve(rows || [])));
+    const pContacts = new Promise(resolve => db.all(`SELECT id, user_id, contact_id, created_at FROM contacts`, [], (err, rows) => resolve(rows || [])));
+    const pMessages = new Promise(resolve => db.all(`SELECT id, sender_id, receiver_id, content, timestamp, is_read FROM messages`, [], (err, rows) => resolve(rows || [])));
+    const pLinks = new Promise(resolve => db.all(`SELECT id, user_id, title, url, category, created_at FROM shared_links`, [], (err, rows) => resolve(rows || [])));
+    const pFolders = new Promise(resolve => db.all(`SELECT id, name, created_by, created_at FROM shared_folders`, [], (err, rows) => resolve(rows || [])));
+    const pFiles = new Promise(resolve => db.all(`SELECT id, user_id, username, filename, file_size, file_data, created_at FROM shared_files`, [], (err, rows) => resolve(rows || [])));
 
-    db.all(`SELECT id, email, username, password_hash, avatar_color, avatar_url, created_at FROM users`, [], (err, users) => {
-        if (err || !users) return;
-        db.all(`SELECT id, user_id, contact_id, created_at FROM contacts`, [], (err, contacts) => {
-            if (err || !contacts) return;
-            db.all(`SELECT id, sender_id, receiver_id, content, timestamp, is_read FROM messages`, [], (err, messages) => {
-                if (err || !messages) return;
-                db.all(`SELECT id, user_id, title, url, category, created_at FROM shared_links`, [], (err, links) => {
-                    db.all(`SELECT id, name, created_by, created_at FROM shared_folders`, [], (err, folders) => {
-                        db.all(`SELECT id, user_id, username, filename, file_size, file_data, created_at FROM shared_files`, [], (err, files) => {
+    Promise.all([pUsers, pContacts, pMessages, pLinks, pFolders, pFiles]).then(([users, contacts, messages, links, folders, files]) => {
+        const backupObj = {
+            users: users || [],
+            contacts: contacts || [],
+            messages: messages || [],
+            shared_links: links || [],
+            shared_folders: folders || [],
+            shared_files: files || []
+        };
 
-                            const backupObj = {
-                                users: users || [],
-                                contacts: contacts || [],
-                                messages: messages || [],
-                                shared_links: links || [],
-                                shared_folders: folders || [],
-                                shared_files: files || []
-                            };
+        try {
+            const jsonStr = JSON.stringify(backupObj, null, 2);
+            const encryptedPayload = encryptData(jsonStr);
+            fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
+            if (BACKUP_ENC_FILE !== ALT_BACKUP_ENC_FILE) {
+                try { fs.writeFileSync(ALT_BACKUP_ENC_FILE, encryptedPayload, 'utf8'); } catch (e) {}
+            }
 
-                            try {
-                                const jsonStr = JSON.stringify(backupObj, null, 2);
-                                const encryptedPayload = encryptData(jsonStr);
-                                fs.writeFileSync(BACKUP_ENC_FILE, encryptedPayload, 'utf8');
-                                if (BACKUP_ENC_FILE !== ALT_BACKUP_ENC_FILE) {
-                                    try { fs.writeFileSync(ALT_BACKUP_ENC_FILE, encryptedPayload, 'utf8'); } catch (e) {}
-                                }
-
-                                // Clean up old backup files
-                                const oldUserEnc = path.join(__dirname, 'users_backup.enc');
-                                if (fs.existsSync(oldUserEnc) && oldUserEnc !== BACKUP_ENC_FILE) fs.unlinkSync(oldUserEnc);
-                                const oldUserJson = path.join(__dirname, 'users_backup.json');
-                                if (fs.existsSync(oldUserJson)) fs.unlinkSync(oldUserJson);
-                            } catch (e) {
-                                console.error('Error writing encrypted db backup:', e.message);
-                            }
-                        });
-                    });
-                });
-            });
-        });
+            // Clean up old backup files
+            const oldUserEnc = path.join(__dirname, 'users_backup.enc');
+            if (fs.existsSync(oldUserEnc) && oldUserEnc !== BACKUP_ENC_FILE) {
+                try { fs.unlinkSync(oldUserEnc); } catch(e) {}
+            }
+            const oldUserJson = path.join(__dirname, 'users_backup.json');
+            if (fs.existsSync(oldUserJson)) {
+                try { fs.unlinkSync(oldUserJson); } catch(e) {}
+            }
+        } catch (e) {
+            console.error('Error writing encrypted db backup:', e.message);
+        }
+    }).catch(err => {
+        console.error('saveUsersBackup Promise.all error:', err);
     });
 }
+
 
 function restoreUsersFromBackup() {
     let backupFilePath = BACKUP_ENC_FILE;
