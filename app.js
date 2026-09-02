@@ -2890,20 +2890,24 @@ function saveLinkToLocalVault(link) {
     try {
         let vault = JSON.parse(localStorage.getItem('anonmesh_vault_links') || '[]');
         const category = (link.category || 'DDOS').toUpperCase();
-        const exists = vault.some(l => l.url === link.url && l.title === link.title && (l.category || 'DDOS').toUpperCase() === category);
-        if (!exists) {
-            vault.push({
-                user_id: link.user_id || state.currentUser?.id,
-                username: link.username || state.currentUser?.username,
-                title: link.title,
-                url: link.url,
-                category: category,
-                created_at: link.created_at || new Date().toISOString()
-            });
-            localStorage.setItem('anonmesh_vault_links', JSON.stringify(vault));
-        }
+        const cleanUrl = (link.url || '').trim().toLowerCase();
+
+        // Remove existing entry for same URL in same category to prevent duplicates
+        vault = vault.filter(l => !((l.url || '').trim().toLowerCase() === cleanUrl && (l.category || 'DDOS').toUpperCase() === category));
+
+        vault.push({
+            id: link.id,
+            user_id: link.user_id || state.currentUser?.id,
+            username: link.username || state.currentUser?.username,
+            title: link.title,
+            url: link.url,
+            category: category,
+            created_at: link.created_at || new Date().toISOString()
+        });
+        localStorage.setItem('anonmesh_vault_links', JSON.stringify(vault));
     } catch (e) {}
 }
+
 
 function saveFolderToLocalVault(folderObj) {
     if (!folderObj) return;
@@ -3201,16 +3205,17 @@ async function loadSharedLinks() {
 
     const allLinksMap = new Map();
     getLocalVaultLinks().forEach(l => {
-        const key = `${(l.url || '').trim()}_${(l.title || '').trim()}_${(l.category || 'DDOS').toUpperCase()}`;
+        const key = `${(l.url || '').trim().toLowerCase()}_${(l.category || 'DDOS').toUpperCase()}`;
         allLinksMap.set(key, l);
     });
     serverLinks.forEach(l => {
-        const key = `${(l.url || '').trim()}_${(l.title || '').trim()}_${(l.category || 'DDOS').toUpperCase()}`;
+        const key = `${(l.url || '').trim().toLowerCase()}_${(l.category || 'DDOS').toUpperCase()}`;
         allLinksMap.set(key, l);
     });
 
     renderSharedLinks(Array.from(allLinksMap.values()));
 }
+
 
 function renderSharedLinks(links) {
     const listContainer = document.getElementById('shared-links-list');

@@ -1092,27 +1092,47 @@ app.post('/api/links', authenticateToken, (req, res) => {
         url = 'https://' + url;
     }
 
-    db.run("INSERT INTO shared_links (user_id, title, url, category) VALUES (?, ?, ?, ?)", [req.user.id, title, url, category], function(err) {
-        if (err) {
-            console.error('Error inserting link:', err);
-            return res.status(500).json({ error: 'Fehler beim Speichern des Links.' });
+    db.get("SELECT id FROM shared_links WHERE UPPER(url) = ? AND UPPER(category) = ?", [url.toUpperCase(), category], (err, existing) => {
+        if (existing) {
+            db.run("UPDATE shared_links SET title = ?, user_id = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?", [title, req.user.id, existing.id], function(updateErr) {
+                const updatedLink = {
+                    id: existing.id,
+                    user_id: req.user.id,
+                    username: req.user.username,
+                    title,
+                    url,
+                    category,
+                    created_at: new Date().toISOString()
+                };
+                saveUsersBackup();
+                io.emit('link_added', updatedLink);
+                return res.json(updatedLink);
+            });
+        } else {
+            db.run("INSERT INTO shared_links (user_id, title, url, category) VALUES (?, ?, ?, ?)", [req.user.id, title, url, category], function(insertErr) {
+                if (insertErr) {
+                    console.error('Error inserting link:', insertErr);
+                    return res.status(500).json({ error: 'Fehler beim Speichern des Links.' });
+                }
+
+                const newLink = {
+                    id: this.lastID,
+                    user_id: req.user.id,
+                    username: req.user.username,
+                    title,
+                    url,
+                    category,
+                    created_at: new Date().toISOString()
+                };
+
+                saveUsersBackup();
+                io.emit('link_added', newLink);
+                res.json(newLink);
+            });
         }
-
-        const newLink = {
-            id: this.lastID,
-            user_id: req.user.id,
-            username: req.user.username,
-            title,
-            url,
-            category,
-            created_at: new Date().toISOString()
-        };
-
-        saveUsersBackup();
-        io.emit('link_added', newLink);
-        res.json(newLink);
     });
 });
+
 
 // DELETE /api/links/:id - Delete a shared link (Strictly Creator Only!)
 app.delete('/api/links/:id', authenticateToken, (req, res) => {
